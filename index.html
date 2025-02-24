@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean & Clear - Professional Cleaning Services</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style1.css">
+
+    <script src="script.js"></script>
+</head>
+<style>
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    transition: transform 0.3s ease;
+}
+
+.logo:hover {
+    transform: scale(1.05);
+}
+
+.logo img {
+    height: 60px;
+    width: auto;
+}
+
+
+/* Rest of your existing styles remain the same */
+.search-container {
+    display: flex;
+    align-items: center;
+    margin-right: 30px;
+}
+
+.search-bar {
+    display: flex;
+    align-items: center;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    padding: 5px 15px;
+    transition: all 0.3s ease;
+}
+
+.search-bar:focus-within {
+    border-color: #ee6e06;
+    box-shadow: 0 0 5px #ee6e06;
+}
+
+.search-bar input {
+    border: none;
+    background: none;
+    padding: 5px;
+    width: 200px;
+    outline: none;
+    font-size: 14px;
+}
+
+.search-bar button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    color: #666;
+    transition: color 0.3s ease;
+}
+
+.search-bar button:hover {
+    color: #007bff;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-right: -10px;
+    margin-left: auto;
+}
+
+/* <!-----------> */
+
+.container1 {
+    background-color: #ffffff;
+    padding: 50px 20px;
+}
+
+.container1 h2 {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #bc4f07;
+    text-align: center;
+    position: relative;
+}
+
+.container1 h2::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 3px;
+    background-color:  #bc4f07;
+    transition: width 0.3s ease;
+}
+
+.container1:hover h2::after {
+    width: 100px;
+}
+
+.features {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 30px;
+}
+
+.feature {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 150px;
+    padding: 20px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+.feature::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(14, 15, 14, 0.05);
+    border-radius: 8px;
+    transform: scale(0.8);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.feature:hover {
+    transform: translateY(-5px);
+}
+
+.feature:hover::before {
+    transform: scale(1);
+    opacity: 1;
+}
+
+.feature i {
+    font-size: 40px;
+    color: #099409;
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+}
+
+.feature:hover i {
+    transform: scale(1.1) rotate(5deg);
+    animation: iconPulse 1s ease infinite;
+}
+
+.feature p {
+    font-size: 14px;
+    font-weight: bold;
+    color: #848b84;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    z-index: 1;
+}
+
+.feature:hover p {
+    transform: scale(1.05);
+}
+
+/* Animation for icon pulse */
+@keyframes iconPulse {
+    0%, 100% {
+        transform: scale(1.1) rotate(5deg);
+    }
+    50% {
+        transform: scale(1.2) rotate(-5deg);
+    }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .container1 {
+        padding: 30px 15px;
+    }
+    
+    .features {
+        gap: 20px;
+    }
+    
+    .feature {
+        max-width: 130px;
+        padding: 15px;
+    }
+    
+    .feature i {
+        font-size: 32px;
+    }
+    
+    .feature p {
+        font-size: 12px;
+    }
+}
+</style>
+<body>
+    <div class="container">
+        <nav>
+            <div class="logo">
+                <a href="index.html"><img src="images/logo2.png" alt="ServiceHive Logo"></a>
+                
+            </div>
+            <div class="nav-links">
+                <a href="#home" class="dropdown-indicator">Home</a>
+                <a href="#about">About Us</a>
+                <div class="dropdown">
+                    <a href="#services" class="dropdown-indicator">Services</a>
+                    <div class="dropdown-content">
+                        <a href="#residential">Cleaning</a>
+                        <a href="#commercial">Plumber</a>
+                        <a href="#specialized">Electrician</a>
+                        <a href="#specialized">Carpenter</a>
+                        <a href="#specialized">HouseKeeper</a>
+                        <a href="#specialized">A/C Repairer</a>
+                        <a href="#specialized">Painting</a>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <a href="#pages" class="dropdown-indicator">Pages</a>
+                    <div class="dropdown-content">
+                        <a href="#team">Our Team</a>
+                        <a href="#pricing">Pricing</a>
+                        <a href="#faq">FAQ</a>
+                    </div>
+                </div>
+                <a href="#contact">Contact Us</a>
+                <div class="search-container">
+                    <form class="search-bar" onsubmit="return false;">
+                        <input type="text" placeholder="Search services..." aria-label="Search">
+                        <button type="submit" aria-label="Submit search">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+             <a href="login.php" class="get-in-touch">Login</a>
+        </nav>
+        <section class="hero">             
+            <div class="slider">                 
+                <div class="slide active">                     
+                    <img src="images/main.webp" alt="images" />                 
+                </div>                 
+                <div class="slide">                     
+                    <img src="images/main1.jpeg" alt="images" />                 
+                </div>                 
+                <div class="slide">                     
+                    <img src="images/main3.jpeg" alt="images" />                 
+                </div>             
+            </div>             
+            <div class="slider-nav"></div>             
+            <div class="slider-arrow slider-prev">‹</div>             
+            <div class="slider-arrow slider-next">›</div>
+            <h1>Your Trusted Partner for Home Services</h1>
+    <p>Connect with skilled professionals for all your household needs</p>
+    <div class="cta-buttons">
+        <a href="#about" class="cta-button primary-button">ABOUT US</a>
+        <a href="#contact" class="cta-button secondary-button">GET IN TOUCH</a>
+    </div>         
+        </section>
+    </div>
+
+     
+    <div class="services-sections1">
+        <div class="services-contents1">
+            <div class="services-images1">
+                <div class="slidess active2">
+                    <img src="images/image1.jpeg" alt="Service 1">
+                </div>
+                <!-- <div class="slide2">
+                    <img src="image2.jpg" alt="Service 2">
+                </div>
+                <div class="slide2">
+                    <img src="image3.jpg" alt="Service 3">
+                </div>
+                <div class="slide2">
+                    <img src="plumbing1.webp" alt="Service 4">
+                </div> -->
+    
+               
+                <!-- <div class="experience-badge">
+                    <div class="icon">★</div>
+                    <div>23 Years Experience</div>
+                </div> -->
+    
+                <div class="carousel-nav"></div>
+            </div>
+        </div>
+    
+        <div class="services-text">
+            <h2 class="services-title">Your Trusted Partner for Household Solutions</h2>
+            <p>Simplify your life with ServiceHive, connecting you to skilled professionals for all your household needs. From seamless booking to secure payments, we prioritize quality, reliability, 
+                and your peace of mind. Choose ServiceHive for hassle-free, dependable service every time.</p>
+            <div class="services-list">
+                <div class="service-item">✓ House</div>
+                <div class="service-item">✓ Warehouses</div>
+                <div class="service-item">✓ Restaurant</div>
+                <div class="service-item">✓ Showrooms</div>
+                <div class="service-item">✓ Worship Place</div>
+                <div class="service-item">✓ Office</div>
+                <div class="service-item">✓ Hotel</div>
+                <div class="service-item">✓ Hospital</div>
+            </div>
+        </div>
+    </div>
+        
+    <div class="services">
+        <h1>SERVICES</h1>
+        <h3>What we offer</h3>
+    </div>
+    
+    <section class="services-section">
+        <!-- Carousel -->
+        <div class="carousel">
+            <div class="carousel-track-container">
+                <ul class="carousel-track">
+                    <!-- Service 1 -->
+                    <li class="carousel-slide">
+                        <div class="card">
+                            <img src="https://images.pexels.com/photos/6197116/pexels-photo-6197116.jpeg" alt="Plumbing" class="card-image">
+                            <h3 class="card-title">Cleaning</h3>
+                            <p class="card-description">Professional plumbing solutions tailored to your needs.</p>
+                            <a href="" style="display: flex; justify-content: center; text-decoration: none;">
+                         <button style="background-color:rgb(18, 136, 171); color: white; border:none; border-radius:5px;
+                          padding: 10px 20px; cursor:pointer;">View More</button></a>
+                        </div>
+                    </li>
+                    <!-- Service 2 -->
+                    <li class="carousel-slide">
+                        <div class="card">
+                            <img src="https://media.istockphoto.com/id/1309317619/photo/electrician-at-work-on-a-residential-electrical-system-electricity.jpg?s=612x612&w=0&k=20&c=SZrl9kfkNH6yf7KlGXmMoXWXms6kCN9AlVzYK_edsSY=" alt="Electrician" class="card-image">
+                            <h3 class="card-title">Electrician</h3>
+                            <p class="card-description">Expert electrical services for your home and office.</p>
+                            <a href="" style="display: flex; justify-content: center; text-decoration: none;">
+                         <button style="background-color:rgb(18, 136, 171); color: white; border:none; border-radius:5px;
+                          padding: 10px 20px; cursor:pointer;">View More</button></a>
+                        </div>
+                    </li>
+                    <!-- Service 3 -->
+                    <li class="carousel-slide">
+                        <div class="card">
+                            <img src="https://media.istockphoto.com/id/2187991619/photo/professional-plumber-fixing-a-bathroom-sink.jpg?s=612x612&w=0&k=20&c=kI-SoB5LtkAdgeP2fj6U2_Ur1EEBJpvu5OPTW1S7nEI=" alt="Carpenter" class="card-image">
+                            <h3 class="card-title">Plumber</h3>
+                            <p class="card-description">Quality carpentry services to enhance your space.</p>
+                            <a href="" style="display: flex; justify-content: center; text-decoration: none;">
+                         <button style="background-color:rgb(18, 136, 171); color: white; border:none; border-radius:5px;
+                          padding: 10px 20px; cursor:pointer;">View More</button></a>
+                        </div>
+                    </li>
+                    <!-- Service 4 -->
+                    <li class="carousel-slide">
+                        <div class="card">
+                            <img src="https://images.pexels.com/photos/5974301/pexels-photo-5974301.jpeg?auto=compress&cs=tinysrgb&w=600&lazy=load" alt="Cleaning" class="card-image">
+                            <h3 class="card-title">Carpenter</h3>
+                            <p class="card-description">Thorough and efficient cleaning services for every need.</p>
+                            <a href="" style="display: flex; justify-content: center; text-decoration: none;">
+                         <button style="background-color:rgb(18, 136, 171); color: white; border:none; border-radius:5px;
+                          padding: 10px 20px; cursor:pointer;">View More</button></a>
+                        </div>
+                    </li>
+                    <!-- Service 5 -->
+                    <li class="carousel-slide">
+                        <div class="card">
+                            <img src="https://images.pexels.com/photos/9462319/pexels-photo-9462319.jpeg?auto=compress&cs=tinysrgb&w=600&lazy=load" alt="Housekeeping" class="card-image">
+                            <h3 class="card-title">Housekeeping</h3>
+                            <p class="card-description">Reliable housekeeping services to keep your space tidy.</p>
+                            <a href="" style="display: flex; justify-content: center; text-decoration: none;">
+                         <button style="background-color:rgb(18, 136, 171); color: white; border:none; border-radius:5px;
+                          padding: 10px 20px; cursor:pointer;">View More</button></a>
+                        </div>
+                    </li>
+                    <!-- Service 6 -->
+                    <li class="carousel-slide">
+                        <div class="card">
+                            <img src="https://media.istockphoto.com/id/1173284783/photo/painter-painting-walls-with-a-extender-roller-indoors.jpg?s=612x612&w=0&k=20&c=ILeDPsluF_69G91Xj8FB5KQkanEYQy5ywjjkQkfMy_I=" alt="Painting" class="card-image">
+                            <h3 class="card-title">Painting</h3>
+                            <p class="card-description">Expert painting services for a fresh and vibrant look.</p>
+                            <a href="" style="display: flex; justify-content: center; text-decoration: none;">
+                         <button style="background-color:rgb(18, 136, 171); color: white; border:none; border-radius:5px;
+                          padding: 10px 20px; cursor:pointer;">View More</button></a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <!-- Navigation Dots
+            <div class="carousel-nav">
+                <button class="carousel-dot" aria-label="Slide 1"></button>
+                <button class="carousel-dot" aria-label="Slide 2"></button>
+                
+            </div>
+        </div> -->
+    </section>
+    
+    <div class="indicators">
+        <span class="indicator active" data-slide1="0"></span>
+        <span class="indicator" data-slide1="1"></span>
+        
+    </div>
+
+
+    <div class="container1">
+        <h2>WHY SERVICEHIVE?</h2>
+        <div class="features">
+            <div class="feature">
+                <i class="fa-solid fa-calendar-check"></i>
+                <p>ON DEMAND / SCHEDULED</p>
+            </div>
+            <div class="feature">
+                <i class="fa-solid fa-user-check"></i>
+                <p>VERIFIED PARTNERS</p>
+            </div>
+            <!-- <div class="feature">
+                <i class="fa-solid fa-shield-check"></i>
+                <p>SERVICE WARRANTY</p>
+            </div> -->
+            <div class="feature">
+                <i class="fa-solid fa-tag"></i>
+                <p>TRANSPARENT PRICING</p>
+            </div>
+            <div class="feature">
+                <i class="fa-solid fa-credit-card"></i>
+                <p>ONLINE PAYMENTS</p>
+            </div>
+            <div class="feature">
+                <i class="fa-solid fa-headset"></i>
+                <p>SUPPORT</p>
+            </div>
+        </div>
+    </div>
+    </div>
+    
+
+    <footer>
+        <div class="container9">
+            <div class="logo3">
+                <img src="images/logo1.png" alt=" Logo">
+                
+            </div>
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>Company</h3>
+                    <ul>
+                        <li><a href="#">About us</a></li>
+                        <li><a href="#">Terms & conditions</a></li>
+                        <li><a href="#">Privacy policy</a></li>
+                        
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h3>For customers</h3>
+                    <ul>
+                        <li><a href="#">UC reviews</a></li>
+                        <li><a href="#">Categories near you</a></li>
+                        <li><a href="#">Contact us</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h3>For Partners</h3>
+                    <ul>
+                        <li><a href="#">Register as a professional</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section contact-info">
+                    <h3>Contact Info</h3>
+                    <ul>
+                        <li><i class="fas fa-map-marker-alt"></i> 201 Stokes Isle Apt. 896, New York 10010, US</li>
+                        <li><i class="fas fa-phone-alt"></i> (+01) 123 456 7890</li>
+                        <li><i class="fas fa-envelope"></i> info@example.com</li>
+                    </ul>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                    </div>
+
+                </div>
+            </div>
+                    <!-- <div class="app-download">
+                        <img src="path/to/app-store-icon.png" alt="Download on App Store">
+                        <img src="path/to/google-play-icon.png" alt="Get it on Google Play">
+                    </div> -->
+                </div>
+            </div>
+
+            <div class="copyright">
+                © Copyright 2025 ServiceHive. All rights reserved. 
+            </div>
+        </div>
+    </footer>
+
+
+    <script></script>
+        
+        
+        
+    
+   
+
+
+</body>
+</html>
