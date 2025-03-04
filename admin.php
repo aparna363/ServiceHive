@@ -300,7 +300,7 @@ $bookings = getBookings($conn);
         }
 
         .logout-btn {
-            margin-top: 320px;
+            margin-top: 270px;
             background-color: rgb(133, 36, 3);
         }
 
@@ -490,6 +490,10 @@ $bookings = getBookings($conn);
                     <i class="fas fa-home"></i>
                     <span>Dashboard</span>
                 </a>
+                <a href="index.php" class="menu-item">
+                    <i class="fas fa-home"></i>
+                    <span>Home</span>
+                </a>
                 <a href="#providers" class="menu-item">
                     <i class="fas fa-user-tie"></i>
                     <span>Service Providers</span>
@@ -506,6 +510,7 @@ $bookings = getBookings($conn);
                     <i class="fas fa-users"></i>
                     <span>Users</span>
                 </a>
+               
                 
                 <a href="logout.php" class="menu-item logout-btn">
                     <i class="fas fa-sign-out-alt"></i>
@@ -677,45 +682,7 @@ $bookings = getBookings($conn);
                 </table>
             </div>
 
-            <!-- Subservices Section -->
-            <div class="section" id="subservices">
-                <h2><i class="fas fa-list"></i> Subservices</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Subservice Name</th>
-                            <th>Main Service</th>
-                            <th>Price</th>
-                            <th>Description</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($subservices && $subservices->num_rows > 0): ?>
-                            <?php while ($subservice = $subservices->fetch_assoc()): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($subservice['sub_service_id']); ?></td>
-                                    <td><?php echo htmlspecialchars($subservice['sub_service_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($subservice['main_service']); ?></td>
-                                    <td>₹<?php echo htmlspecialchars($subservice['price']); ?></td>
-                                    <td><?php echo htmlspecialchars($subservice['description']); ?></td>
-                                    <td>
-                                        <span class="status-badge status-<?php echo strtolower($subservice['status']); ?>">
-                                            <?php echo ucfirst($subservice['status']); ?>
-                                        </span>
-                                    </td>
-                                </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="6">No subservices found.</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
+          
     <script>
         // Add active class to current menu item
         document.addEventListener('DOMContentLoaded', function() {

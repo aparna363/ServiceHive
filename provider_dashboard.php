@@ -253,7 +253,8 @@ $ratings = $stmt->get_result()->fetch_assoc();
                 <img src="images/logo2.png" alt="ServiceHive Logo" class="company-logo">
             </div>
             <ul class="sidebar-menu">
-                <li><a href="index.php"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="provider_dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="index.php"><i class="fas fa-globe"></i> Home </a></li>
                 <li><a href="#"><i class="fas fa-calendar"></i> Bookings</a></li>
                 <li><a href="service-management.php"><i class="fas fa-tools"></i> Services</a></li>
                 <li><a href="subservice-management.php"><i class="fas fa-tools"></i> Sub Services</a></li>

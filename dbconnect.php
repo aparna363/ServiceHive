@@ -209,7 +209,22 @@ try {
             description TEXT,
             images VARCHAR(255),
             FOREIGN KEY (service_id) REFERENCES tbl_services(service_id) ON DELETE CASCADE
-        )"
+        )",
+        'login_logs' => "CREATE TABLE IF NOT EXISTS login_logs (
+            id INT AUTO_INCREMENT,
+            user_id INT,
+            email VARCHAR(100),
+            ip_address VARCHAR(50),
+            user_agent TEXT,
+            status VARCHAR(50),
+            notes TEXT,
+            login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (email) REFERENCES users(email) ON DELETE CASCADE,
+            INDEX idx_login_time (login_time)
+        )",
+
     ];
 
     // Create remaining tables

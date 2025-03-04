@@ -180,11 +180,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['register'])) {
         try {
             $conn->begin_transaction();
 
-            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $verification_token = bin2hex(random_bytes(50));
-            $token_expiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
-            $role = ($_SESSION['userType'] === 'professional') ? 'service_provider' : 'user';
-
             // Check if email exists
             $check_email = $conn->prepare("SELECT id FROM users WHERE email = ?");
             $check_email->bind_param("s", $email);
@@ -193,6 +188,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['register'])) {
                 throw new Exception("Email already registered");
             }
             $check_email->close();
+
+            // Add check for existing phone number
+            $check_mobile = $conn->prepare("SELECT id FROM users WHERE mobile = ?");
+            $check_mobile->bind_param("s", $mobile);
+            $check_mobile->execute();
+            if($check_mobile->get_result()->num_rows > 0) {
+                throw new Exception("Phone number already registered");
+            }
+            $check_mobile->close();
+
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            $verification_token = bin2hex(random_bytes(50));
+            $token_expiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
+            $role = ($_SESSION['userType'] === 'professional') ? 'service_provider' : 'user';
 
             // Insert into users table
             $sql = "INSERT INTO users (username, email, mobile, password, verification_token, token_expiry, role) 

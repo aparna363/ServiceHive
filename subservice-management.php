@@ -33,6 +33,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Add new sub-service
                 $service_id = $_POST['service_id'];
                 $sub_service_name = $_POST['sub_service_name'];
+                
+                // Check if sub-service name already exists in the same service
+                $check_stmt = $conn->prepare("
+                    SELECT ss.sub_service_id 
+                    FROM tbl_sub_services ss
+                    JOIN tbl_services s ON ss.service_id = s.service_id
+                    WHERE s.service_id = ? AND ss.sub_service_name = ?
+                ");
+                $check_stmt->bind_param("is", $service_id, $sub_service_name);
+                $check_stmt->execute();
+                $result = $check_stmt->get_result();
+                
+                if ($result->num_rows > 0) {
+                    $_SESSION['error_msg'] = "A sub-service with this name already exists in the selected service!";
+                    header('Location: subservice-management.php');
+                    exit();
+                }
+
                 $price = $_POST['price'];
                 $description = $_POST['description'];
                 
@@ -439,7 +457,7 @@ $services = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 <img src="images/logo2.png" alt="ServiceHive Logo" class="company-logo">
             </div>
             <ul class="sidebar-menu">
-                <li><a href="index.php"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="provider_dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="#"><i class="fas fa-calendar"></i> Bookings</a></li>
                 <li><a href="service-management.php"><i class="fas fa-tools"></i> Services</a></li>
                 <li><a href="sub-service-management.php"><i class="fas fa-tools"></i> Sub-Services</a></li>

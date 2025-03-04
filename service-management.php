@@ -70,55 +70,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Add new service
             $category_id = $_POST['category_id'];
             $service_name = $_POST['service_name'];
-            $active = isset($_POST['is_active']) ? 1 : 0;
-            $cart_option = isset($_POST['add_to_cart_option']) ? 1 : 0;
-
-            // Handle image upload
-            $image_path = '';
-            if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
-                $allowed = ['jpg', 'jpeg', 'png', 'gif'];
-                $filename = $_FILES['service_image']['name'];
-                $file_ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-
-                if(in_array($file_ext, $allowed)) {
-                    // Create uploads directory if it doesn't exist
-                    $upload_dir = 'uploads/services/';
-                    if (!file_exists($upload_dir)) {
-                        mkdir($upload_dir, 0777, true);
-                    }
-
-                    $new_filename = uniqid('service_', true) . '.' . $file_ext;
-                    $upload_path = $upload_dir . $new_filename;
-                    
-                    if(move_uploaded_file($_FILES['service_image']['tmp_name'], $upload_path)) {
-                        $image_path = $upload_path;
-                    } else {
-                        $error_msg = "Error uploading file. Please check directory permissions.";
-                    }
-                } else {
-                    $error_msg = "Invalid file type. Allowed types: jpg, jpeg, png, gif";
-                }
-            }
-
-            // Insert service with image path
-            $stmt = $conn->prepare("
-                INSERT INTO tbl_services 
-                (category_id, provider_id, service_name, add_to_cart_option, is_active, image_path) 
-                VALUES (?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->bind_param("iisiis", 
-                $category_id, 
-                $provider_id_from_table, 
-                $service_name, 
-                $cart_option, 
-                $active, 
-                $image_path
-            );
             
-            if ($stmt->execute()) {
-                $success_msg = "Service added successfully!";
+            // Check if service name already exists in the same category
+            $check_stmt = $conn->prepare("
+                SELECT service_id 
+                FROM tbl_services 
+                WHERE category_id = ? AND service_name = ? AND provider_id = ?
+            ");
+            $check_stmt->bind_param("isi", $category_id, $service_name, $provider_id_from_table);
+            $check_stmt->execute();
+            $result = $check_stmt->get_result();
+            
+            if ($result->num_rows > 0) {
+                $error_msg = "A service with this name already exists in the selected category!";
             } else {
-                $error_msg = "Error adding service: " . $conn->error;
+                $active = isset($_POST['is_active']) ? 1 : 0;
+                $cart_option = isset($_POST['add_to_cart_option']) ? 1 : 0;
+
+                // Handle image upload
+                $image_path = '';
+                if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
+                    $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+                    $filename = $_FILES['service_image']['name'];
+                    $file_ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+                    if(in_array($file_ext, $allowed)) {
+                        // Create uploads directory if it doesn't exist
+                        $upload_dir = 'uploads/services/';
+                        if (!file_exists($upload_dir)) {
+                            mkdir($upload_dir, 0777, true);
+                        }
+
+                        $new_filename = uniqid('service_', true) . '.' . $file_ext;
+                        $upload_path = $upload_dir . $new_filename;
+                        
+                        if(move_uploaded_file($_FILES['service_image']['tmp_name'], $upload_path)) {
+                            $image_path = $upload_path;
+                        } else {
+                            $error_msg = "Error uploading file. Please check directory permissions.";
+                        }
+                    } else {
+                        $error_msg = "Invalid file type. Allowed types: jpg, jpeg, png, gif";
+                    }
+                }
+
+                // Insert service with image path
+                $stmt = $conn->prepare("
+                    INSERT INTO tbl_services 
+                    (category_id, provider_id, service_name, add_to_cart_option, is_active, image_path) 
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->bind_param("iisiis", 
+                    $category_id, 
+                    $provider_id_from_table, 
+                    $service_name, 
+                    $cart_option, 
+                    $active, 
+                    $image_path
+                );
+                
+                if ($stmt->execute()) {
+                    $success_msg = "Service added successfully!";
+                } else {
+                    $error_msg = "Error adding service: " . $conn->error;
+                }
             }
         } elseif ($_POST['action'] === 'edit') {
             // Edit existing service

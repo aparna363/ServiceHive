@@ -8,29 +8,45 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 require_once 'dbconnect.php';
 
+// Initialize error message variable
+$error_message = '';
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Add Category
     if (isset($_POST['add_category'])) {
-        $category_name = $_POST['category_name'];
+        $category_name = trim($_POST['category_name']);
         $category_desc = $_POST['category_description'];
         
-        // Handle image upload
-        if ($_FILES['category_image']['error'] === UPLOAD_ERR_OK) {
-            $uploadDir = 'uploads/categories/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0777, true);
-            }
-            $imageName = basename($_FILES['category_image']['name']);
-            $imagePath = $uploadDir . $imageName;
-            move_uploaded_file($_FILES['category_image']['tmp_name'], $imagePath);
-        } else {
-            $imagePath = null;
-        }
+        // Check if category already exists
+        $check_stmt = $conn->prepare("SELECT category_id FROM tbl_categories WHERE LOWER(category_name) = LOWER(?) AND is_active = TRUE");
+        $check_stmt->bind_param("s", $category_name);
+        $check_stmt->execute();
+        $result = $check_stmt->get_result();
         
-        $stmt = $conn->prepare("INSERT INTO tbl_categories (category_name, description, image_path) VALUES (?, ?, ?)");
-        $stmt->bind_param("sss", $category_name, $category_desc, $imagePath);
-        $stmt->execute();
+        if ($result->num_rows > 0) {
+            $error_message = "Error: Category '$category_name' already exists!";
+        } else {
+            // Handle image upload
+            if ($_FILES['category_image']['error'] === UPLOAD_ERR_OK) {
+                $uploadDir = 'uploads/categories/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0777, true);
+                }
+                $imageName = basename($_FILES['category_image']['name']);
+                $imagePath = $uploadDir . $imageName;
+                move_uploaded_file($_FILES['category_image']['tmp_name'], $imagePath);
+            } else {
+                $imagePath = null;
+            }
+            
+            $stmt = $conn->prepare("INSERT INTO tbl_categories (category_name, description, image_path) VALUES (?, ?, ?)");
+            $stmt->bind_param("sss", $category_name, $category_desc, $imagePath);
+            $stmt->execute();
+            
+            header("Location: " . $_SERVER['PHP_SELF'] . "?active=categories");
+            exit();
+        }
     }
     
     // Delete Category
@@ -360,6 +376,15 @@ $subServices = $conn->query($subServicesQuery);
     background-color: rgba(255,255,255,0.2);
     pointer-events: none;
 }
+
+.error-message {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+}
     </style>
 </head>
 <body>
@@ -395,6 +420,12 @@ $subServices = $conn->query($subServicesQuery);
 
         <!-- Main Content -->
         <div class="main-content">
+            <?php if (!empty($error_message)): ?>
+                <div class="error-message">
+                    <?php echo htmlspecialchars($error_message); ?>
+                </div>
+            <?php endif; ?>
+            
             <!-- Categories Section -->
             <div id="categoriesTable" class="section table-section <?php echo (isset($_GET['active']) && $_GET['active'] === 'categories') ? 'active' : ''; ?>">
                 <h2>Categories</h2>
