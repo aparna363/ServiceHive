@@ -58,16 +58,24 @@ if(isset($_POST['login'])) {
                 // Log successful login
                 logLoginAttempt($conn, $user['id'], $email, 'success');
 
-                // Redirect based on role
-                switch(strtolower($user['role'])) {
+                // Modify your switch statement to be more flexible
+                $role = strtolower(trim($user['role']));
+                error_log("Normalized role for switch: " . $role);
+
+                switch($role) {
                     case 'admin':
                         error_log("Admin case matched");
                         header("Location: admin.php");
                         exit();
+                    case 'provider':
                     case 'service_provider':
+                    case 'serviceprovider':
+                        error_log("Provider case matched with role: " . $role);
+                        $_SESSION['role'] = 'service_provider'; // Standardize the role in session
                         header("Location: provider_dashboard.php");
                         exit();
                     default:
+                        error_log("Default case matched with role: " . $role);
                         header("Location: index.php");
                         exit();
                 }

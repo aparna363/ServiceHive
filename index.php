@@ -1,5 +1,13 @@
 <?php
+// Attempt to start session with error handling
 session_start();
+if (!isset($_SESSION)) {
+    // If session failed to start, clear session file and retry
+    @session_destroy();
+    session_start();
+    session_regenerate_id(true);
+}
+
 require_once 'dbconnect.php';
 $categories_query = "SELECT * FROM tbl_categories WHERE is_active = TRUE ORDER BY category_name";
 $categories = $conn->query($categories_query);
@@ -419,6 +427,326 @@ $categories = $conn->query($categories_query);
     text-align: center;
     color: #666;
 }
+
+/* Floating Action Buttons */
+.floating-action-buttons {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    z-index: 999;
+}
+
+.floating-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.floating-btn:hover {
+    transform: scale(1.1);
+}
+
+.floating-btn i {
+    font-size: 24px;
+    color: white;
+}
+
+.floating-btn.visit {
+    background-color: #28a745;
+}
+
+.floating-btn.emergency {
+    background-color: #e53e3e;
+}
+
+.btn-label {
+    position: absolute;
+    right: 70px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.floating-btn:hover .btn-label {
+    opacity: 1;
+}
+
+/* Visit Booking Modal */
+.visit-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1001;
+}
+
+.visit-modal .modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+}
+
+.visit-modal .close-modal {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.visit-modal h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #2d3748;
+    font-size: 22px;
+}
+
+.visit-fee-notice {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #28a745;
+}
+
+.visit-fee-notice p {
+    margin: 0;
+    font-size: 15px;
+}
+
+.visit-fee-notice .fee {
+    font-weight: 600;
+    color: #28a745;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+.book-button {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.3s;
+}
+
+.book-button:hover {
+    background: #218838;
+}
+
+/* Emergency Booking Modal */
+.emergency-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1001;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.emergency-modal .modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+    margin: auto;
+}
+
+.emergency-modal .close-modal {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 1002;
+    background: #fff;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.emergency-modal .modal-header {
+    position: sticky;
+    top: 0;
+    background: white;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    z-index: 1;
+}
+
+.emergency-fee-notice {
+    background: #fff5f5;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #e53e3e;
+}
+
+.emergency-fee-notice p {
+    margin: 0;
+    font-size: 15px;
+}
+
+.emergency-fee-notice .fee {
+    font-weight: 600;
+    color: #e53e3e;
+}
+
+/* Success Modals */
+.visit-success-modal,
+.emergency-success-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1001;
+}
+
+.visit-success-modal .modal-content,
+.emergency-success-modal .modal-content {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    text-align: center;
+    max-width: 500px;
+    width: 90%;
+    position: relative;
+    transform: scale(0.7);
+    transition: transform 0.3s ease-out;
+}
+
+.visit-success-modal.show .modal-content,
+.emergency-success-modal.show .modal-content {
+    transform: scale(1);
+}
+
+.success-icon {
+    color: #28a745;
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.emergency-icon {
+    color: #e53e3e;
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.modal-buttons button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.3s;
+}
+
+.modal-buttons button:first-child {
+    background: #f1f1f1;
+    color: #333;
+}
+
+.modal-buttons button:last-child {
+    background: #28a745;
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .floating-action-buttons {
+        bottom: 20px;
+        right: 20px;
+    }
+    
+    .floating-btn {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .floating-btn i {
+        font-size: 20px;
+    }
+    
+    .modal-buttons {
+        flex-direction: column;
+    }
+    
+    .modal-buttons button {
+        width: 100%;
+    }
+}
 </style>
 <body>
     <div class="container">
@@ -638,6 +966,167 @@ $categories = $conn->query($categories_query);
     </div>
     </div>
 
+    <!-- Floating Action Buttons -->
+    <div class="floating-action-buttons">
+        <div class="floating-btn visit" onclick="showVisitModal()">
+            <i class="fas fa-calendar-check"></i>
+            <span class="btn-label">Book a Visit</span>
+        </div>
+        <div class="floating-btn emergency" onclick="showEmergencyModal()">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span class="btn-label">Emergency Service</span>
+        </div>
+    </div>
+
+    <!-- Visit Booking Modal -->
+    <div id="visitModal" class="visit-modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeVisitModal()">&times;</span>
+            <h3>Book a Technical Visit</h3>
+            
+            <div class="visit-fee-notice">
+                <p>A technician will visit your location to assess your requirements.</p>
+                <p>Visit fee: <span class="fee">₹199</span> (payable on visit)</p>
+            </div>
+            
+            <form id="visitForm">
+                <input type="hidden" name="action" value="book_visit">
+                
+                <div class="form-group">
+                    <label>Service Category</label>
+                    <select name="category_id" required>
+                        <?php
+                        // Reset the categories result pointer
+                        $categories->data_seek(0);
+                        while ($category = $categories->fetch_assoc()): ?>
+                            <option value="<?php echo $category['category_id']; ?>">
+                                <?php echo htmlspecialchars($category['category_name']); ?>
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Visit Date</label>
+                    <input type="date" name="visit_date" required min="<?php echo date('Y-m-d'); ?>">
+                </div>
+                
+                <div class="form-group">
+                    <label>Visit Time</label>
+                    <select name="visit_time" required>
+                        <?php for($i = 9; $i <= 17; $i++): ?>
+                            <option value="<?php echo sprintf('%02d:00', $i); ?>">
+                                <?php echo date('h:i A', strtotime(sprintf('%02d:00', $i))); ?>
+                            </option>
+                        <?php endfor; ?>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Address</label>
+                    <textarea name="visit_address" required rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Additional Notes (optional)</label>
+                    <textarea name="visit_notes" rows="3" placeholder="Describe your requirements or issues"></textarea>
+                </div>
+                
+                <button type="button" class="book-button" onclick="bookVisit()">Confirm Visit</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Visit Success Modal -->
+    <div id="visitSuccessModal" class="visit-success-modal">
+        <div class="modal-content">
+            <i class="fas fa-check-circle success-icon"></i>
+            <h2>Visit Scheduled!</h2>
+            <p>Your technical visit has been successfully scheduled.</p>
+            <p>Visit Reference: <strong id="visitReference"></strong></p>
+            <p>A confirmation email has been sent to your registered email address.</p>
+            <div class="modal-buttons">
+                <button onclick="window.location.href='visits.php'">View My Visits</button>
+                <button onclick="window.location.reload()">Continue Shopping</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emergency Booking Modal -->
+    <div id="emergencyModal" class="emergency-modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeEmergencyModal()">&times;</span>
+            
+            <div class="modal-header">
+                <h3><i class="fas fa-exclamation-triangle"></i> Emergency Service Request</h3>
+                
+                <div class="emergency-fee-notice">
+                    <p><strong>Need urgent help?</strong> Our technicians will prioritize your request.</p>
+                    <p>Emergency service fee: <span class="fee">₹299</span> (additional to service charges)</p>
+                    <p>Expected response time: <strong>Within 2 hours</strong></p>
+                </div>
+            </div>
+            
+            <form id="emergencyForm">
+                <input type="hidden" name="action" value="book_emergency">
+                
+                <div class="form-group">
+                    <label>Service Category</label>
+                    <select name="category_id" required>
+                        <?php
+                        // Reset the categories result pointer
+                        $categories->data_seek(0);
+                        while ($category = $categories->fetch_assoc()): ?>
+                            <option value="<?php echo $category['category_id']; ?>">
+                                <?php echo htmlspecialchars($category['category_name']); ?>
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Your Name*</label>
+                    <input type="text" name="emergency_name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Phone Number*</label>
+                    <input type="tel" name="emergency_phone" required pattern="[0-9]{10}">
+                </div>
+                
+                <div class="form-group">
+                    <label>Email Address*</label>
+                    <input type="email" name="emergency_email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Address*</label>
+                    <textarea name="emergency_address" required rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Describe your emergency*</label>
+                    <textarea name="emergency_issue" required rows="3" placeholder="Please provide details about your emergency"></textarea>
+                </div>
+                
+                <button type="button" class="book-button" style="background-color: #e53e3e;" onclick="bookEmergency()">Request Emergency Service</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Emergency Success Modal -->
+    <div id="emergencySuccessModal" class="emergency-success-modal">
+        <div class="modal-content">
+            <i class="fas fa-exclamation-circle emergency-icon"></i>
+            <h2>Emergency Request Received!</h2>
+            <p>Your emergency service request has been prioritized.</p>
+            <p>Emergency Reference: <strong id="emergencyReference"></strong></p>
+            <p>A technician will contact you shortly.</p>
+            <div class="modal-buttons">
+                <button onclick="window.location.reload()">Close</button>
+            </div>
+        </div>
+    </div>
 
     <footer>
         <div class="container9">
@@ -751,3 +1240,119 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script> -->
+
+<script>
+// Visit booking functions
+function showVisitModal() {
+    const modal = document.getElementById('visitModal');
+    modal.style.display = 'flex';
+    
+    // Prevent body scrolling when modal is open
+    document.body.style.overflow = 'hidden';
+    
+    // Reset form if needed
+    document.getElementById('visitForm').reset();
+}
+
+function closeVisitModal() {
+    document.getElementById('visitModal').style.display = 'none';
+    
+    // Re-enable body scrolling
+    document.body.style.overflow = '';
+}
+
+// Close modal if user clicks outside the modal content
+document.getElementById('visitModal').addEventListener('click', function(event) {
+    if (event.target === this) {
+        closeVisitModal();
+    }
+});
+
+function bookVisit() {
+    const formData = new FormData(document.getElementById('visitForm'));
+    
+    fetch('services.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close visit modal
+            closeVisitModal();
+            
+            // Show success modal
+            document.getElementById('visitReference').textContent = data.visit_reference;
+            document.getElementById('visitSuccessModal').style.display = 'flex';
+            
+            // Add animation class
+            setTimeout(() => {
+                document.getElementById('visitSuccessModal').classList.add('show');
+            }, 10);
+        } else {
+            alert(data.message || 'Error booking visit');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error booking visit');
+    });
+}
+
+// Emergency booking functions
+function showEmergencyModal() {
+    const modal = document.getElementById('emergencyModal');
+    modal.style.display = 'flex';
+    
+    // Prevent body scrolling when modal is open
+    document.body.style.overflow = 'hidden';
+    
+    // Reset form if needed
+    document.getElementById('emergencyForm').reset();
+}
+
+function closeEmergencyModal() {
+    document.getElementById('emergencyModal').style.display = 'none';
+    
+    // Re-enable body scrolling
+    document.body.style.overflow = '';
+}
+
+// Close modal if user clicks outside the modal content
+document.getElementById('emergencyModal').addEventListener('click', function(event) {
+    if (event.target === this) {
+        closeEmergencyModal();
+    }
+});
+
+function bookEmergency() {
+    const formData = new FormData(document.getElementById('emergencyForm'));
+    
+    fetch('services.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close emergency modal
+            closeEmergencyModal();
+            
+            // Show success modal
+            document.getElementById('emergencyReference').textContent = data.emergency_reference;
+            document.getElementById('emergencySuccessModal').style.display = 'flex';
+            
+            // Add animation class
+            setTimeout(() => {
+                document.getElementById('emergencySuccessModal').classList.add('show');
+            }, 10);
+        } else {
+            alert(data.message || 'Error requesting emergency service');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error requesting emergency service');
+    });
+}
+</script>

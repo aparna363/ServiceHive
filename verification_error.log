@@ -1,0 +1,233 @@
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Starting verification process for user: 11
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Checking required fields: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Checking required files: Array
+(
+    [0] => id_proof_front
+    [1] => id_proof_back
+    [2] => address_proof
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Validating ID number: Array
+(
+    [type] => aadhar
+    [number] => 123456789012
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Creating user upload directory: uploads/verification/11/
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Processing file uploads
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Processing file: Array
+(
+    [0] => id_proof_front
+    [1] => image/png
+    [2] => 9360
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Uploading file: Array
+(
+    [from] => C:\xampp\tmp\phpF822.tmp
+    [to] => uploads/verification/11/id_proof_front_1741950554.png
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Processing file: Array
+(
+    [0] => id_proof_back
+    [1] => image/png
+    [2] => 9360
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Uploading file: Array
+(
+    [from] => C:\xampp\tmp\phpF823.tmp
+    [to] => uploads/verification/11/id_proof_back_1741950554.png
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Processing file: Array
+(
+    [0] => address_proof
+    [1] => image/png
+    [2] => 9360
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Uploading file: Array
+(
+    [from] => C:\xampp\tmp\phpF824.tmp
+    [to] => uploads/verification/11/address_proof_1741950554.png
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] All files uploaded successfully: Array
+(
+    [id_proof_front] => uploads/verification/11/id_proof_front_1741950554.png
+    [id_proof_back] => uploads/verification/11/id_proof_back_1741950554.png
+    [address_proof] => uploads/verification/11/address_proof_1741950554.png
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Beginning database transaction
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Checking service_providers table columns
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Existing columns: Array
+(
+    [0] => provider_id
+    [1] => user_id
+    [2] => category_id
+    [3] => business_name
+    [4] => description
+    [5] => verified_status
+    [6] => certifications
+    [7] => availability
+    [8] => rating
+    [9] => total_reviews
+    [10] => status
+    [11] => created_at
+    [12] => updated_at
+    [13] => id_type
+    [14] => license_number
+    [15] => id_number
+    [16] => id_verified
+    [17] => id_proof_status
+    [18] => id_proof_front
+    [19] => id_proof_back
+    [20] => address_proof
+    [21] => documents_uploaded
+)
+
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Getting provider_id for user: 11
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Found provider_id: 7
+[14-Mar-2025 12:09:14 Europe/Berlin] [2025-03-14 12:09:14] Updating service provider with verification details
+[14-Mar-2025 12:09:14 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\ServiceHive\process_verification.php:221
+Stack trace:
+#0 C:\xampp\htdocs\ServiceHive\process_verification.php(221): mysqli_stmt->bind_param('ssssssi', 'aadhar', '123456789012', 'uploads/verific...', 'uploads/verific...', 'uploads/verific...', 7)
+#1 {main}
+  thrown in C:\xampp\htdocs\ServiceHive\process_verification.php on line 221
+[14-Mar-2025 12:12:48 Europe/Berlin] [2025-03-14 12:12:48] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 12:12:48 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\ServiceHive\process_verification.php:181
+Stack trace:
+#0 C:\xampp\htdocs\ServiceHive\process_verification.php(181): mysqli_stmt->bind_param('ssssssi', 'aadhar', '123456789012', 'uploads/verific...', 'uploads/verific...', 'uploads/verific...', 7)
+#1 {main}
+  thrown in C:\xampp\htdocs\ServiceHive\process_verification.php on line 181
+[14-Mar-2025 12:14:27 Europe/Berlin] [2025-03-14 12:14:27] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 12:14:27 Europe/Berlin] [2025-03-14 12:14:27] Error: Cannot add or update a child row: a foreign key constraint fails (`serviceshive`.`notifications`, CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE)
+[14-Mar-2025 12:17:41 Europe/Berlin] [2025-03-14 12:17:41] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 12:17:41 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\ServiceHive\process_verification.php:181
+Stack trace:
+#0 C:\xampp\htdocs\ServiceHive\process_verification.php(181): mysqli_stmt->bind_param('ssssssi', 'aadhar', '123456789012', 'uploads/verific...', 'uploads/verific...', 'uploads/verific...', 7)
+#1 {main}
+  thrown in C:\xampp\htdocs\ServiceHive\process_verification.php on line 181
+[14-Mar-2025 12:19:31 Europe/Berlin] [2025-03-14 12:19:31] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 12:19:31 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\ServiceHive\process_verification.php:174
+Stack trace:
+#0 C:\xampp\htdocs\ServiceHive\process_verification.php(174): mysqli_stmt->bind_param('ssssssi', 'aadhar', '123456789012', 'uploads/verific...', 'uploads/verific...', 'uploads/verific...', 7)
+#1 {main}
+  thrown in C:\xampp\htdocs\ServiceHive\process_verification.php on line 174
+[14-Mar-2025 12:19:38 Europe/Berlin] [2025-03-14 12:19:38] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 12:19:38 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\ServiceHive\process_verification.php:174
+Stack trace:
+#0 C:\xampp\htdocs\ServiceHive\process_verification.php(174): mysqli_stmt->bind_param('ssssssi', 'aadhar', '123456789012', 'uploads/verific...', 'uploads/verific...', 'uploads/verific...', 7)
+#1 {main}
+  thrown in C:\xampp\htdocs\ServiceHive\process_verification.php on line 174
+[14-Mar-2025 12:22:03 Europe/Berlin] [2025-03-14 12:22:03] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 12:22:03 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\ServiceHive\process_verification.php:174
+Stack trace:
+#0 C:\xampp\htdocs\ServiceHive\process_verification.php(174): mysqli_stmt->bind_param('ssssssi', 'aadhar', '123456789012', 'uploads/verific...', 'uploads/verific...', 'uploads/verific...', 7)
+#1 {main}
+  thrown in C:\xampp\htdocs\ServiceHive\process_verification.php on line 174
+[14-Mar-2025 12:22:55 Europe/Berlin] [2025-03-14 12:22:55] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 17:40:59 Europe/Berlin] [2025-03-14 17:40:59] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 17:55:53 Europe/Berlin] [2025-03-14 17:55:53] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 18:04:40 Europe/Berlin] [2025-03-14 18:04:40] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[14-Mar-2025 18:35:34 Europe/Berlin] [2025-03-14 18:35:34] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[15-Mar-2025 16:23:15 Europe/Berlin] [2025-03-15 16:23:15] Starting verification process: Array
+(
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [terms] => on
+)
+
+[16-Mar-2025 08:32:09 Europe/Berlin] [2025-03-16 08:32:09] Provider not found for user ID: 22
+[16-Mar-2025 08:34:40 Europe/Berlin] [2025-03-16 08:34:40] Processing verification for provider ID: 19
+[16-Mar-2025 08:34:40 Europe/Berlin] [2025-03-16 08:34:40] Form data: ID Type: aadhar, ID Number: 123456789012
+[16-Mar-2025 08:34:40 Europe/Berlin] [2025-03-16 08:34:40] ID front image is required. Error code: not set
+[16-Mar-2025 08:34:40 Europe/Berlin] [2025-03-16 08:34:40] ID back image is required. Error code: not set
+[16-Mar-2025 08:34:40 Europe/Berlin] [2025-03-16 08:34:40] Address proof is required. Error code: 0
+[16-Mar-2025 08:34:40 Europe/Berlin] [2025-03-16 08:34:40] Upload failed, redirecting back to dashboard
+[16-Mar-2025 08:41:58 Europe/Berlin] Verification details for provider 19: Array
+(
+    [provider_id] => 19
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => Arjun
+    [email] => aparnanp53@gmail.com
+    [has_documents] => 
+)
+
