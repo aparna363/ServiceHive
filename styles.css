@@ -1,0 +1,51 @@
+/* Add these new styles */
+.payment-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+}
+
+.payment-option-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.payment-icon {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.choose-text {
+    color: #0066FF;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.payment-option.selected .choose-text {
+    color: #4CAF50;
+}
+
+.continue-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+/* Update existing styles */
+.payment-options {
+    display: block;
+    padding: 0;
+}
+
+.payment-option {
+    border: none;
+    border-bottom: 1px solid #eee;
+    border-radius: 0;
+    margin: 0;
+}
+
+.payment-option:last-child {
+    border-bottom: none;
+} 

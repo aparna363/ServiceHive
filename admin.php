@@ -14,12 +14,24 @@ $userCount = $conn->query("SELECT COUNT(*) as count FROM users WHERE role != 'ad
 $providerCount = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'service_provider'")->fetch_assoc()['count'];
 $bookingCount = $conn->query("SELECT COUNT(*) as count FROM bookings")->fetch_assoc()['count'];
 
+// Get pending verification requests
+$stmt = $conn->prepare("
+    SELECT sp.provider_id, sp.user_id, sp.status, sp.created_at, u.username, u.email
+    FROM service_providers sp
+    JOIN users u ON sp.user_id = u.id
+    WHERE sp.status = 'pending'
+    ORDER BY sp.created_at DESC
+");
+$stmt->execute();
+$pending_verifications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
 // Functions for database operations
 function getServiceProviders($db) {
     $query = "SELECT u.id, u.username, u.email, u.status, sp.verified_status, sp.rating, sp.total_reviews,
-              sp.business_name
+              sp.business_name, IFNULL(v.documents_uploaded, 'pending') as verification_status
               FROM users u 
               LEFT JOIN service_providers sp ON u.id = sp.user_id 
+              LEFT JOIN verification_status v ON u.id = v.provider_id
               WHERE u.role = 'service_provider'";
     return $db->query($query);
 }
@@ -32,16 +44,18 @@ function getUsers($db) {
 }
 
 function getBookings($db) {
-    $query = "SELECT b.booking_id, b.booking_date, b.time_slot, b.status, b.total_price,
+    $query = "SELECT b.booking_id, b.booking_date, b.booking_time, b.status, 
               b.priority, b.notes, b.payment_status,
               u.username as client_name, 
               sp.business_name as provider_name,
-              s.service_name
+              s.service_name,
+              p.amount as total_price
               FROM bookings b 
               JOIN users u ON b.user_id = u.id 
               JOIN service_providers sp ON b.provider_id = sp.provider_id
               JOIN tbl_services s ON b.service_id = s.service_id
-              ORDER BY b.booking_date DESC, b.time_slot DESC";
+              LEFT JOIN payments p ON b.booking_id = p.booking_id
+              ORDER BY b.booking_date DESC, b.booking_time DESC";
     return $db->query($query);
 }
 
@@ -55,17 +69,23 @@ function approveServiceProvider($db, $id) {
         $stmt1->execute();
 
         // Update service_provider verified_status
-        $query2 = "UPDATE service_providers SET verified_status = TRUE WHERE user_id = ?";
+        $query2 = "UPDATE service_providers SET verified_status = TRUE, status = 'approved' WHERE user_id = ?";
         $stmt2 = $db->prepare($query2);
         $stmt2->bind_param("i", $id);
         $stmt2->execute();
-
-        // Create notification
-        $query3 = "INSERT INTO notifications (user_id, title, message, type) 
-                  VALUES (?, 'Account Approved', 'Your service provider account has been approved.', 'system')";
+        
+        // Update verification status if it exists
+        $query3 = "UPDATE verification_status SET documents_uploaded = 'completed' WHERE provider_id = ?";
         $stmt3 = $db->prepare($query3);
         $stmt3->bind_param("i", $id);
         $stmt3->execute();
+
+        // Create notification
+        $query4 = "INSERT INTO notifications (user_id, title, message, type) 
+                  VALUES (?, 'Account Approved', 'Your service provider account has been approved. You can now start offering services.', 'system')";
+        $stmt4 = $db->prepare($query4);
+        $stmt4->bind_param("i", $id);
+        $stmt4->execute();
 
         $db->commit();
         return true;
@@ -85,17 +105,23 @@ function rejectServiceProvider($db, $id) {
         $stmt1->execute();
 
         // Update service_provider verified_status
-        $query2 = "UPDATE service_providers SET verified_status = FALSE WHERE user_id = ?";
+        $query2 = "UPDATE service_providers SET verified_status = FALSE, status = 'rejected' WHERE user_id = ?";
         $stmt2 = $db->prepare($query2);
         $stmt2->bind_param("i", $id);
         $stmt2->execute();
-
-        // Create notification
-        $query3 = "INSERT INTO notifications (user_id, title, message, type) 
-                  VALUES (?, 'Account Rejected', 'Your service provider application has been rejected.', 'system')";
+        
+        // Update verification status if it exists
+        $query3 = "UPDATE verification_status SET documents_uploaded = 'rejected' WHERE provider_id = ?";
         $stmt3 = $db->prepare($query3);
         $stmt3->bind_param("i", $id);
         $stmt3->execute();
+
+        // Create notification
+        $query4 = "INSERT INTO notifications (user_id, title, message, type) 
+                  VALUES (?, 'Account Rejected', 'Your service provider application has been rejected. Please contact support for more information.', 'system')";
+        $stmt4 = $db->prepare($query4);
+        $stmt4->bind_param("i", $id);
+        $stmt4->execute();
 
         $db->commit();
         return true;
@@ -474,6 +500,297 @@ $bookings = getBookings($conn);
             background-color: #f8d7da;
             color: #721c24;
         }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: black;
+        }
+        
+        .verification-documents {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .document-preview {
+            flex: 1;
+            min-width: 250px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        
+        .document-preview h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .document-preview img {
+            width: 100%;
+            height: auto;
+            max-height: 300px;
+            object-fit: contain;
+            margin-bottom: 10px;
+            border: 1px solid #eee;
+        }
+        
+        .btn-view {
+            background-color: #2196F3;
+            color: white;
+            margin-left: 10px;
+        }
+
+        /* Verification requests styles */
+        .verification-requests {
+            margin-top: 30px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        
+        .verification-requests h2 {
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .verification-requests h2 i {
+            margin-right: 10px;
+            color: #007bff;
+        }
+        
+        .verification-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .verification-table th, 
+        .verification-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .verification-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .verification-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .verification-table .badge {
+            padding: 6px 12px;
+            border-radius: 50px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .verification-table .badge-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .verification-table .btn {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 5px;
+            border: none;
+        }
+        
+        .verification-table .btn-view {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .verification-table .btn-view:hover {
+            background-color: #0069d9;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #6c757d;
+        }
+        
+        /* Verification modal styles */
+        .verification-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .verification-modal-content {
+            background-color: white;
+            margin: 50px auto;
+            padding: 30px;
+            width: 80%;
+            max-width: 900px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+        
+        .verification-modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #aaa;
+        }
+        
+        .verification-modal-close:hover {
+            color: #333;
+        }
+        
+        .verification-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .verification-detail-item {
+            margin-bottom: 15px;
+        }
+        
+        .verification-detail-label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .verification-detail-value {
+            color: #212529;
+        }
+        
+        .verification-documents {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .verification-document {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .verification-document-label {
+            background-color: #f8f9fa;
+            padding: 10px;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .verification-document-image {
+            padding: 10px;
+            text-align: center;
+        }
+        
+        .verification-document-image img {
+            max-width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+        }
+        
+        .verification-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .verification-actions .btn {
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .verification-actions .btn-approve {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .verification-actions .btn-reject {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .verification-actions .btn-approve:hover {
+            background-color: #218838;
+        }
+        
+        .verification-actions .btn-reject:hover {
+            background-color: #c82333;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+        }
+        
+        .error {
+            color: #dc3545;
+            padding: 15px;
+            background-color: #f8d7da;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -551,6 +868,43 @@ $bookings = getBookings($conn);
                 </div>
             </div>
 
+            <!-- Verification requests section -->
+            <div class="verification-requests">
+                <h2><i class="fas fa-user-check"></i> Pending Verification Requests</h2>
+                
+                <?php if (count($pending_verifications) > 0): ?>
+                    <table class="verification-table">
+                        <thead>
+                            <tr>
+                                <th>Provider</th>
+                                <th>Email</th>
+                                <th>Submitted On</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($pending_verifications as $verification): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($verification['username']); ?></td>
+                                    <td><?php echo htmlspecialchars($verification['email']); ?></td>
+                                    <td><?php echo date('M d, Y', strtotime($verification['created_at'])); ?></td>
+                                    <td><span class="badge badge-pending">Pending</span></td>
+                                    <td>
+                                        <button class="btn btn-view" onclick="viewVerification(<?php echo $verification['provider_id']; ?>)">
+                                            View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <div class="empty-state">
+                        <p>No pending verification requests at this time.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
 
             <!-- Service Providers Section -->
             <div class="section" id="providers">
@@ -562,6 +916,7 @@ $bookings = getBookings($conn);
                             <th>Name</th>
                             <th>Email</th>
                             <th>Status</th>
+                            <th>Verification</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -578,6 +933,24 @@ $bookings = getBookings($conn);
                                         </span>
                                     </td>
                                     <td>
+                                        <?php
+                                        // Check if verification documents are uploaded
+                                        $v_stmt = $conn->prepare("SELECT documents_uploaded FROM verification_status WHERE provider_id = ?");
+                                        $v_stmt->bind_param("i", $provider['id']);
+                                        $v_stmt->execute();
+                                        $v_result = $v_stmt->get_result();
+                                        $v_status = $v_result->num_rows > 0 ? $v_result->fetch_assoc()['documents_uploaded'] : 'pending';
+                                        ?>
+                                        <span class="status-badge status-<?php echo $v_status === 'completed' ? 'approved' : 'pending'; ?>">
+                                            <?php echo ucfirst($v_status); ?>
+                                        </span>
+                                        <?php if ($v_status === 'completed'): ?>
+                                            <button class="btn btn-view" onclick="viewVerificationDetails(<?php echo $provider['id']; ?>)">
+                                                <i class="fas fa-eye"></i> View
+                                            </button>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
                                         <form method="POST" style="display:inline;">
                                             <input type="hidden" name="provider_id" value="<?php echo $provider['id']; ?>">
                                             <button type="submit" name="approve_provider" class="btn btn-approve">Approve</button>
@@ -587,7 +960,7 @@ $bookings = getBookings($conn);
                                 </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
-                            <tr><td colspan="5">No service providers found.</td></tr>
+                            <tr><td colspan="6">No service providers found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -681,8 +1054,21 @@ $bookings = getBookings($conn);
                     </tbody>
                 </table>
             </div>
-
-          
+        </div>
+    </div>
+    
+    <!-- Verification details modal -->
+    <div id="verificationModal" class="verification-modal">
+        <div class="verification-modal-content">
+            <span class="verification-modal-close" onclick="closeVerificationModal()">&times;</span>
+            <h2>Verification Details</h2>
+            <div id="verificationDetails">
+                <!-- Details will be loaded here via AJAX -->
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+    
     <script>
         // Add active class to current menu item
         document.addEventListener('DOMContentLoaded', function() {
@@ -740,6 +1126,243 @@ $bookings = getBookings($conn);
                 }
             });
         });
+
+        // Function to view verification details
+        function viewVerificationDetails(providerId) {
+            // Show loading state
+            document.getElementById('verificationModal').style.display = 'block';
+            document.getElementById('verificationDetails').innerHTML = '<p class="text-center">Loading verification details...</p>';
+            
+            fetch(`get_verification_details.php?provider_id=${providerId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const details = data.details;
+                        const verificationDetails = document.getElementById('verificationDetails');
+                        
+                        // Create content based on whether documents exist
+                        if (details.has_documents) {
+                            let content = `
+                                <div class="verification-info">
+                                    <p><strong>Business Name:</strong> ${details.business_name || 'N/A'}</p>
+                                    <p><strong>ID Type:</strong> ${details.id_type || 'N/A'}</p>
+                                    <p><strong>ID Number:</strong> ${details.id_number || 'N/A'}</p>
+                                    <p><strong>Uploaded:</strong> ${details.uploaded_at ? new Date(details.uploaded_at).toLocaleString() : 'N/A'}</p>
+                                </div>
+                                <div class="verification-images">
+                                    <div class="image-container">
+                                        <h4>ID Front</h4>
+                                        ${details.id_front_path ? 
+                                            `<img src="${details.id_front_path}" alt="ID Front" class="verification-image">` : 
+                                            '<p class="text-center">No image uploaded</p>'}
+                                    </div>
+                                    <div class="image-container">
+                                        <h4>ID Back</h4>
+                                        ${details.id_back_path ? 
+                                            `<img src="${details.id_back_path}" alt="ID Back" class="verification-image">` : 
+                                            '<p class="text-center">No image uploaded</p>'}
+                                    </div>
+                                    <div class="image-container">
+                                        <h4>Address Proof</h4>
+                                        ${details.address_proof_path ? 
+                                            `<img src="${details.address_proof_path}" alt="Address Proof" class="verification-image">` : 
+                                            '<p class="text-center">No image uploaded</p>'}
+                                    </div>
+                                </div>
+                            `;
+                            verificationDetails.innerHTML = content;
+                        } else {
+                            verificationDetails.innerHTML = `
+                                <div class="alert alert-warning">
+                                    <p>No verification documents have been submitted by this provider.</p>
+                                    <p><strong>Business Name:</strong> ${details.business_name || 'N/A'}</p>
+                                    <p><strong>Status:</strong> ${details.status || 'N/A'}</p>
+                                </div>
+                            `;
+                        }
+                        
+                        // Set provider ID for approve/reject buttons
+                        document.getElementById('approveBtn').setAttribute('data-provider-id', details.provider_id);
+                        document.getElementById('rejectBtn').setAttribute('data-provider-id', details.provider_id);
+                    } else {
+                        document.getElementById('verificationDetails').innerHTML = `
+                            <div class="alert alert-danger">
+                                <p>Error: ${data.message}</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching verification details:', error);
+                    document.getElementById('verificationDetails').innerHTML = `
+                        <div class="alert alert-danger">
+                            <p>Error loading verification details. Please try again.</p>
+                            <p>Technical details: ${error.message}</p>
+                        </div>
+                    `;
+                });
+        }
+        
+        // Close modal when clicking the X
+        document.querySelector('.close').addEventListener('click', function() {
+            document.getElementById('verificationModal').style.display = 'none';
+        });
+        
+        // Close modal when clicking outside of it
+        window.addEventListener('click', function(event) {
+            if (event.target == document.getElementById('verificationModal')) {
+                document.getElementById('verificationModal').style.display = 'none';
+            }
+        });
+
+        function viewVerification(providerId) {
+            // Show modal
+            document.getElementById('verificationModal').style.display = 'block';
+            document.getElementById('verificationDetails').innerHTML = '<div class="loading">Loading verification details...</div>';
+            
+            console.log('Fetching verification details for provider ID:', providerId);
+            
+            // Load verification details
+            fetch('get_verification_details.php?provider_id=' + providerId)
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error('Network response was not ok: ' + text);
+                        });
+                    }
+                    return response.text().then(text => {
+                        console.log('Raw response:', text);
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            throw new Error('Invalid JSON response: ' + e.message + '\nRaw response: ' + text);
+                        }
+                    });
+                })
+                .then(data => {
+                    console.log('Parsed data:', data);
+                    if (data.success) {
+                        displayVerificationDetails(data.details, providerId);
+                    } else {
+                        document.getElementById('verificationDetails').innerHTML = 
+                            '<div class="error">Error: ' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching verification details:', error);
+                    document.getElementById('verificationDetails').innerHTML = 
+                        '<div class="error">Error loading verification details: ' + error.message + '</div>';
+                });
+        }
+        
+        function displayVerificationDetails(details, providerId) {
+            const html = `
+                <div class="verification-details">
+                    <div class="verification-detail-item">
+                        <span class="verification-detail-label">Provider Name</span>
+                        <span class="verification-detail-value">${details.username}</span>
+                    </div>
+                    <div class="verification-detail-item">
+                        <span class="verification-detail-label">Email</span>
+                        <span class="verification-detail-value">${details.email}</span>
+                    </div>
+                    <div class="verification-detail-item">
+                        <span class="verification-detail-label">ID Type</span>
+                        <span class="verification-detail-value">${details.id_type}</span>
+                    </div>
+                    <div class="verification-detail-item">
+                        <span class="verification-detail-label">ID Number</span>
+                        <span class="verification-detail-value">${details.id_number}</span>
+                    </div>
+                </div>
+                
+                <h3>Verification Documents</h3>
+                <div class="verification-documents">
+                    <div class="verification-document">
+                        <div class="verification-document-label">ID Proof (Front)</div>
+                        <div class="verification-document-image">
+                            <img src="${details.id_proof_front}" alt="ID Proof Front">
+                        </div>
+                    </div>
+                    <div class="verification-document">
+                        <div class="verification-document-label">ID Proof (Back)</div>
+                        <div class="verification-document-image">
+                            <img src="${details.id_proof_back}" alt="ID Proof Back">
+                        </div>
+                    </div>
+                    <div class="verification-document">
+                        <div class="verification-document-label">Address Proof</div>
+                        <div class="verification-document-image">
+                            <img src="${details.address_proof}" alt="Address Proof">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="verification-actions">
+                    <button class="btn btn-reject" onclick="updateVerificationStatus(${providerId}, 'rejected')">
+                        Reject Verification
+                    </button>
+                    <button class="btn btn-approve" onclick="updateVerificationStatus(${providerId}, 'approved')">
+                        Approve Verification
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('verificationDetails').innerHTML = html;
+        }
+        
+        function closeVerificationModal() {
+            document.getElementById('verificationModal').style.display = 'none';
+        }
+        
+        function updateVerificationStatus(providerId, status) {
+            console.log(`Updating verification status for provider ${providerId} to ${status}`);
+            
+            // Create form data
+            const formData = new FormData();
+            formData.append('provider_id', providerId);
+            formData.append('status', status);
+            
+            fetch('update_verification_status.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.text().then(text => {
+                    console.log('Raw response:', text);
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        throw new Error('Invalid JSON response: ' + e.message + '\nRaw response: ' + text);
+                    }
+                });
+            })
+            .then(data => {
+                console.log('Parsed data:', data);
+                if (data.success) {
+                    alert(data.message);
+                    closeVerificationModal();
+                    // Reload the page to update the verification list
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating verification status:', error);
+                alert('Error updating verification status: ' + error.message);
+            });
+        }
+        
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('verificationModal');
+            if (event.target == modal) {
+                closeVerificationModal();
+            }
+        }
     </script>
 </body>
 </html>

@@ -3,6 +3,12 @@
 require_once 'dbconnect.php';
 session_start();
 
+// Initialize cart if it doesn't exist
+if (!isset($_SESSION['guest_cart'])) {
+    $_SESSION['guest_cart'] = [];
+    $_SESSION['guest_cart_count'] = 0;
+}
+
 // Get category_id from the URL
 $category_id = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
 
@@ -195,98 +201,778 @@ if (!isset($_SESSION['cart'])) {
 // Debug: Check session cart
 error_log("Cart items: " . count($_SESSION['cart']));
 
-// Handle AJAX requests to add/remove items from cart
+// Handle cart actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
+    $action = $_POST['action'];
     
-    if ($_POST['action'] === 'add_to_cart' && isset($_POST['sub_service_id'])) {
-        $sub_service_id = intval($_POST['sub_service_id']);
-        
-        // Check if item already exists in cart
-        if (isset($_SESSION['cart'][$sub_service_id])) {
-            $_SESSION['cart'][$sub_service_id]['quantity']++;
-        } else {
-            // Fetch sub-service details
-            $stmt = $conn->prepare("
-                SELECT 
-                    ss.sub_service_id,
-                    ss.service_id,
-                    ss.sub_service_name,
-                    ss.price,
-                    s.service_name
-                FROM tbl_sub_services ss
-                JOIN tbl_services s ON ss.service_id = s.service_id
-                WHERE ss.sub_service_id = ?
-            ");
-            $stmt->bind_param("i", $sub_service_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
+    switch($action) {
+        case 'add_to_cart':
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode(['success' => false, 'message' => 'Please login to add items to cart']);
+                exit;
+            }
+
+            try {
+                // Validate and sanitize input data
+                $user_id = $_SESSION['user_id'];
+                $sub_service_id = filter_var($_POST['sub_service_id'], FILTER_VALIDATE_INT);
+                
+                // Set default values if not provided
+                $quantity = isset($_POST['quantity']) ? filter_var($_POST['quantity'], FILTER_VALIDATE_FLOAT) : 1;
+                $measurement = isset($_POST['measurement']) ? filter_var($_POST['measurement'], FILTER_VALIDATE_FLOAT) : 0;
+                $final_price = isset($_POST['final_price']) ? filter_var($_POST['final_price'], FILTER_VALIDATE_FLOAT) : 0;
+
+                // Debug logging
+                error_log("Adding to cart - User ID: $user_id, Sub Service ID: $sub_service_id, Quantity: $quantity, Measurement: $measurement, Price: $final_price");
+
+                if (!$sub_service_id) {
+                    throw new Exception('Invalid sub-service ID');
+                }
+
+                // If final_price is not provided, calculate it from the database
+                if (!$final_price) {
+                    $price_query = "SELECT price FROM tbl_sub_services WHERE sub_service_id = ?";
+                    $stmt = $conn->prepare($price_query);
+                    $stmt->bind_param("i", $sub_service_id);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    if ($row = $result->fetch_assoc()) {
+                        $final_price = $row['price'] * ($quantity > 0 ? $quantity : 1);
+                    } else {
+                        throw new Exception('Invalid sub-service');
+                    }
+                }
+
+                // Begin transaction
+                $conn->begin_transaction();
+
+                // Check if item exists in cart
+                $check_query = "SELECT cart_id FROM cart WHERE user_id = ? AND sub_service_id = ? AND status = 'pending'";
+                $stmt = $conn->prepare($check_query);
+                if (!$stmt) {
+                    throw new Exception("Prepare failed: " . $conn->error);
+                }
+                
+                $stmt->bind_param("ii", $user_id, $sub_service_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+
+                if ($result->num_rows > 0) {
+                    // Update existing cart item
+                    $update_query = "UPDATE cart SET 
+                                   quantity = quantity + ?,
+                                   measurement = measurement + ?,
+                                   final_price = final_price + ?,
+                                   updated_at = CURRENT_TIMESTAMP
+                                   WHERE user_id = ? AND sub_service_id = ? AND status = 'pending'";
+                    
+                    $stmt = $conn->prepare($update_query);
+                    $stmt->bind_param("dddii", 
+                        $quantity,
+                        $measurement,
+                        $final_price,
+                        $user_id,
+                        $sub_service_id
+                    );
+                } else {
+                    // Insert new cart item
+                    $insert_query = "INSERT INTO cart 
+                                   (user_id, sub_service_id, quantity, measurement, final_price, status) 
+                                   VALUES (?, ?, ?, ?, ?, 'pending')";
+                    
+                    $stmt = $conn->prepare($insert_query);
+                    $stmt->bind_param("iiddd",
+                        $user_id,
+                        $sub_service_id,
+                        $quantity,
+                        $measurement,
+                        $final_price
+                    );
+                }
+
+                if (!$stmt->execute()) {
+                    throw new Exception("Execute failed: " . $stmt->error);
+                }
+
+                // Commit transaction
+                $conn->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Item added to cart successfully'
+                ]);
+
+            } catch (Exception $e) {
+                // Rollback transaction on error
+                if ($conn->connect_errno === 0) {
+                    $conn->rollback();
+                }
+                
+                error_log("Cart error: " . $e->getMessage());
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Error adding item to cart: ' . $e->getMessage()
+                ]);
+            }
+            exit;
+
+        case 'get_cart':
+            try {
+                $user_id = $_SESSION['user_id'] ?? null;
+                
+                if (!$user_id) {
+                    throw new Exception('User not logged in');
+                }
+
+                // Modified query to get complete service details
+                $cart_query = "
+                    SELECT 
+                        c.*,
+                        ss.sub_service_name,
+                        ss.price as unit_price,
+                        s.service_name,
+                        s.pricing_type
+                    FROM cart c
+                    JOIN tbl_sub_services ss ON c.sub_service_id = ss.sub_service_id
+                    JOIN tbl_services s ON ss.service_id = s.service_id
+                    WHERE c.user_id = ? AND c.status = 'pending'";
+                
+                $stmt = $conn->prepare($cart_query);
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                
+                $cart_items = [];
+                $subtotal = 0;
+                
+                while ($row = $result->fetch_assoc()) {
+                    // Format the cart item data
+                    $cart_item = [
+                        'cart_id' => $row['cart_id'],
+                        'sub_service_id' => $row['sub_service_id'],
+                        'service_name' => $row['service_name'],
+                        'sub_service_name' => $row['sub_service_name'],
+                        'quantity' => floatval($row['quantity']),
+                        'measurement' => floatval($row['measurement']),
+                        'unit_price' => floatval($row['unit_price']),
+                        'final_price' => floatval($row['final_price']),
+                        'pricing_type' => $row['pricing_type']
+                    ];
+                    
+                    $cart_items[] = $cart_item;
+                    $subtotal += $cart_item['final_price'];
+                }
+                
+                $convenience_fee = round($subtotal * 0.05, 2); // 5% convenience fee, rounded to 2 decimal places
+                $total = $subtotal + $convenience_fee;
+                
+                echo json_encode([
+                    'success' => true,
+                    'cart_items' => $cart_items,
+                    'cart_count' => count($cart_items),
+                    'subtotal' => number_format($subtotal, 2, '.', ''),
+                    'convenience_fee' => number_format($convenience_fee, 2, '.', ''),
+                    'total' => number_format($total, 2, '.', '')
+                ]);
+                
+            } catch (Exception $e) {
+                error_log("Get cart error: " . $e->getMessage());
+                echo json_encode([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ]);
+            }
+            exit;
+
+        case 'remove_from_cart':
+            try {
+                if (!isset($_POST['sub_service_id'])) {
+                    throw new Exception('Invalid sub-service ID');
+                }
+
+                $user_id = $_SESSION['user_id'] ?? null;
+                if (!$user_id) {
+                    throw new Exception('User not logged in');
+                }
+
+                $sub_service_id = filter_var($_POST['sub_service_id'], FILTER_VALIDATE_INT);
+                if (!$sub_service_id) {
+                    throw new Exception('Invalid sub-service ID format');
+                }
+
+                // Begin transaction
+                $conn->begin_transaction();
+
+                // Delete the cart item
+                $delete_query = "DELETE FROM cart WHERE user_id = ? AND sub_service_id = ? AND status = 'pending'";
+                $stmt = $conn->prepare($delete_query);
+                if (!$stmt) {
+                    throw new Exception("Prepare failed: " . $conn->error);
+                }
+
+                $stmt->bind_param("ii", $user_id, $sub_service_id);
+                
+                if (!$stmt->execute()) {
+                    throw new Exception("Error removing item from cart: " . $stmt->error);
+                }
+
+                // Commit transaction
+                $conn->commit();
+
+                // Get updated cart data
+                $cart_query = "
+                    SELECT 
+                        c.*,
+                        ss.sub_service_name,
+                        ss.price as unit_price,
+                        s.service_name,
+                        s.pricing_type
+                    FROM cart c
+                    JOIN tbl_sub_services ss ON c.sub_service_id = ss.sub_service_id
+                    JOIN tbl_services s ON ss.service_id = s.service_id
+                    WHERE c.user_id = ? AND c.status = 'pending'";
+                
+                $stmt = $conn->prepare($cart_query);
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                
+                $cart_items = [];
+                $subtotal = 0;
+                
+                while ($row = $result->fetch_assoc()) {
+                    $cart_item = [
+                        'cart_id' => $row['cart_id'],
+                        'sub_service_id' => $row['sub_service_id'],
+                        'service_name' => $row['service_name'],
+                        'sub_service_name' => $row['sub_service_name'],
+                        'quantity' => floatval($row['quantity']),
+                        'measurement' => floatval($row['measurement']),
+                        'unit_price' => floatval($row['unit_price']),
+                        'final_price' => floatval($row['final_price']),
+                        'pricing_type' => $row['pricing_type']
+                    ];
+                    
+                    $cart_items[] = $cart_item;
+                    $subtotal += $cart_item['final_price'];
+                }
+                
+                $convenience_fee = round($subtotal * 0.05, 2);
+                $total = $subtotal + $convenience_fee;
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Item removed from cart',
+                    'cart_items' => $cart_items,
+                    'cart_count' => count($cart_items),
+                    'subtotal' => number_format($subtotal, 2, '.', ''),
+                    'convenience_fee' => number_format($convenience_fee, 2, '.', ''),
+                    'total' => number_format($total, 2, '.', '')
+                ]);
+
+            } catch (Exception $e) {
+                // Rollback transaction on error
+                if ($conn->connect_errno === 0) {
+                    $conn->rollback();
+                }
+                
+                error_log("Remove from cart error: " . $e->getMessage());
+                echo json_encode([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ]);
+            }
+            exit;
+    }
+}
+
+// Update the place_booking handler with proper checks
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    
+    // Check if action exists in POST data
+    $action = $_POST['action'] ?? '';
+    
+    switch($action) {
+        case 'add_to_cart':
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode(['success' => false, 'message' => 'Please login to add items to cart']);
+                exit;
+            }
+
+            try {
+                // Validate and sanitize input data
+                $user_id = $_SESSION['user_id'];
+                $sub_service_id = filter_var($_POST['sub_service_id'], FILTER_VALIDATE_INT);
+                
+                // Set default values if not provided
+                $quantity = isset($_POST['quantity']) ? filter_var($_POST['quantity'], FILTER_VALIDATE_FLOAT) : 1;
+                $measurement = isset($_POST['measurement']) ? filter_var($_POST['measurement'], FILTER_VALIDATE_FLOAT) : 0;
+                $final_price = isset($_POST['final_price']) ? filter_var($_POST['final_price'], FILTER_VALIDATE_FLOAT) : 0;
+
+                // Debug logging
+                error_log("Adding to cart - User ID: $user_id, Sub Service ID: $sub_service_id, Quantity: $quantity, Measurement: $measurement, Price: $final_price");
+
+                if (!$sub_service_id) {
+                    throw new Exception('Invalid sub-service ID');
+                }
+
+                // If final_price is not provided, calculate it from the database
+                if (!$final_price) {
+                    $price_query = "SELECT price FROM tbl_sub_services WHERE sub_service_id = ?";
+                    $stmt = $conn->prepare($price_query);
+                    $stmt->bind_param("i", $sub_service_id);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    if ($row = $result->fetch_assoc()) {
+                        $final_price = $row['price'] * ($quantity > 0 ? $quantity : 1);
+                    } else {
+                        throw new Exception('Invalid sub-service');
+                    }
+                }
+
+                // Begin transaction
+                $conn->begin_transaction();
+
+                // Check if item exists in cart
+                $check_query = "SELECT cart_id FROM cart WHERE user_id = ? AND sub_service_id = ? AND status = 'pending'";
+                $stmt = $conn->prepare($check_query);
+                if (!$stmt) {
+                    throw new Exception("Prepare failed: " . $conn->error);
+                }
+                
+                $stmt->bind_param("ii", $user_id, $sub_service_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+
+                if ($result->num_rows > 0) {
+                    // Update existing cart item
+                    $update_query = "UPDATE cart SET 
+                                   quantity = quantity + ?,
+                                   measurement = measurement + ?,
+                                   final_price = final_price + ?,
+                                   updated_at = CURRENT_TIMESTAMP
+                                   WHERE user_id = ? AND sub_service_id = ? AND status = 'pending'";
+                    
+                    $stmt = $conn->prepare($update_query);
+                    $stmt->bind_param("dddii", 
+                        $quantity,
+                        $measurement,
+                        $final_price,
+                        $user_id,
+                        $sub_service_id
+                    );
+                } else {
+                    // Insert new cart item
+                    $insert_query = "INSERT INTO cart 
+                                   (user_id, sub_service_id, quantity, measurement, final_price, status) 
+                                   VALUES (?, ?, ?, ?, ?, 'pending')";
+                    
+                    $stmt = $conn->prepare($insert_query);
+                    $stmt->bind_param("iiddd",
+                        $user_id,
+                        $sub_service_id,
+                        $quantity,
+                        $measurement,
+                        $final_price
+                    );
+                }
+
+                if (!$stmt->execute()) {
+                    throw new Exception("Execute failed: " . $stmt->error);
+                }
+
+                // Commit transaction
+                $conn->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Item added to cart successfully'
+                ]);
+
+            } catch (Exception $e) {
+                // Rollback transaction on error
+                if ($conn->connect_errno === 0) {
+                    $conn->rollback();
+                }
+                
+                error_log("Cart error: " . $e->getMessage());
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Error adding item to cart: ' . $e->getMessage()
+                ]);
+            }
+            exit;
             
-            if ($sub_service = $result->fetch_assoc()) {
-                $_SESSION['cart'][$sub_service_id] = [
-                    'sub_service_id' => $sub_service['sub_service_id'],
-                    'service_id' => $sub_service['service_id'],
-                    'name' => $sub_service['sub_service_name'],
-                    'service_name' => $sub_service['service_name'],
-                    'price' => $sub_service['price'],
-                    'quantity' => 1
-                ];
+        case 'remove_from_cart':
+            if (isset($_POST['sub_service_id'])) {
+                $sub_service_id = intval($_POST['sub_service_id']);
+                
+                if (isset($_SESSION['cart'][$sub_service_id])) {
+                    unset($_SESSION['cart'][$sub_service_id]);
+                }
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Item removed from cart',
+                    'cart_count' => count($_SESSION['cart']),
+                    'cart_items' => $_SESSION['cart']
+                ]);
+                exit;
             }
-        }
-        
-        echo json_encode([
-            'success' => true,
-            'message' => 'Item added to cart',
-            'cart_count' => count($_SESSION['cart']),
-            'cart_items' => $_SESSION['cart']
-        ]);
-        exit;
-    } 
-    elseif ($_POST['action'] === 'remove_from_cart' && isset($_POST['sub_service_id'])) {
-        $sub_service_id = intval($_POST['sub_service_id']);
-        
-        if (isset($_SESSION['cart'][$sub_service_id])) {
-            unset($_SESSION['cart'][$sub_service_id]);
-        }
-        
-        echo json_encode([
-            'success' => true,
-            'message' => 'Item removed from cart',
-            'cart_count' => count($_SESSION['cart']),
-            'cart_items' => $_SESSION['cart']
-        ]);
-        exit;
-    }
-    elseif ($_POST['action'] === 'update_quantity' && isset($_POST['sub_service_id']) && isset($_POST['quantity'])) {
-        $sub_service_id = intval($_POST['sub_service_id']);
-        $quantity = intval($_POST['quantity']);
-        
-        if ($quantity <= 0) {
-            if (isset($_SESSION['cart'][$sub_service_id])) {
-                unset($_SESSION['cart'][$sub_service_id]);
+            break;
+            
+        case 'update_quantity':
+            if (isset($_POST['sub_service_id']) && isset($_POST['quantity'])) {
+                $sub_service_id = intval($_POST['sub_service_id']);
+                $quantity = intval($_POST['quantity']);
+                
+                if ($quantity <= 0) {
+                    if (isset($_SESSION['cart'][$sub_service_id])) {
+                        unset($_SESSION['cart'][$sub_service_id]);
+                    }
+                } else {
+                    if (isset($_SESSION['cart'][$sub_service_id])) {
+                        $_SESSION['cart'][$sub_service_id]['quantity'] = $quantity;
+                    }
+                }
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Cart updated',
+                    'cart_count' => count($_SESSION['cart']),
+                    'cart_items' => $_SESSION['cart']
+                ]);
+                exit;
             }
-        } else {
-            if (isset($_SESSION['cart'][$sub_service_id])) {
-                $_SESSION['cart'][$sub_service_id]['quantity'] = $quantity;
+            break;
+            
+        case 'get_cart':
+            $cart_total = 0;
+            $cart_items = $_SESSION['cart'] ?? [];
+            
+            // Calculate total from cart items
+            foreach ($cart_items as $item) {
+                $cart_total += floatval($item['final_price']);
             }
-        }
-        
-        echo json_encode([
-            'success' => true,
-            'message' => 'Cart updated',
-            'cart_count' => count($_SESSION['cart']),
-            'cart_items' => $_SESSION['cart']
-        ]);
-        exit;
+            
+            $convenience_fee = $cart_total * 0.05;
+            $grand_total = $cart_total + $convenience_fee;
+            
+            echo json_encode([
+                'success' => true,
+                'cart_count' => count($cart_items),
+                'cart_items' => $cart_items,
+                'subtotal' => $cart_total,
+                'convenience_fee' => $convenience_fee,
+                'grand_total' => $grand_total
+            ]);
+            exit;
+            
+        case 'place_booking':
+            // Make sure we're sending JSON response
+            header('Content-Type: application/json');
+            
+            try {
+                // Validate required fields
+                if (!isset($_POST['service_id']) || !isset($_POST['booking_date']) || !isset($_POST['time_slot'])) {
+                    throw new Exception('Missing required booking information');
+                }
+                
+                // Start transaction
+                $conn->begin_transaction();
+                
+                // Get user ID (must be logged in)
+                if (!isset($_SESSION['user_id'])) {
+                    throw new Exception('You must be logged in to place a booking');
+                }
+                $user_id = $_SESSION['user_id'];
+                
+                // Check cart items from database instead of session
+                $cart_query = "SELECT COUNT(*) as count FROM cart WHERE user_id = ? AND status = 'pending'";
+                $stmt = $conn->prepare($cart_query);
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $cart_count = $result->fetch_assoc()['count'];
+                
+                if ($cart_count == 0) {
+                    throw new Exception('Your cart is empty. Please add services to continue.');
+                }
+                
+                // Get cart items
+                $cart_items_query = "SELECT c.*, ss.sub_service_name, s.service_name, s.service_id 
+                                    FROM cart c 
+                                    JOIN tbl_sub_services ss ON c.sub_service_id = ss.sub_service_id 
+                                    JOIN tbl_services s ON ss.service_id = s.service_id 
+                                    WHERE c.user_id = ? AND c.status = 'pending'";
+                $stmt = $conn->prepare($cart_items_query);
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $cart_items = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                
+                // Get service details from the first cart item
+                $service_id = $cart_items[0]['service_id'];
+                
+                // Rest of your existing booking logic...
+                $service_query = "SELECT s.*, sp.provider_id FROM tbl_services s 
+                                  JOIN service_providers sp ON s.provider_id = sp.provider_id 
+                                  WHERE s.service_id = ?";
+                $stmt = $conn->prepare($service_query);
+                $stmt->bind_param("i", $service_id);
+                $stmt->execute();
+                $service_result = $stmt->get_result();
+                
+                if ($service_result->num_rows === 0) {
+                    throw new Exception('Service not found');
+                }
+                
+                $service = $service_result->fetch_assoc();
+                $provider_id = $service['provider_id'];
+                
+                // Calculate total price from cart items
+                $total_price = 0;
+                foreach ($cart_items as $item) {
+                    $total_price += $item['final_price'];
+                }
+                
+                // Add convenience fee
+                $convenience_fee = $total_price * 0.05; // 5% convenience fee
+                $total_price += $convenience_fee;
+                
+                // Generate booking reference
+                $booking_reference = 'BK' . date('YmdHis') . rand(100, 999);
+                
+                // Get booking date and time
+                $booking_date = $_POST['booking_date'];
+                $time_slot = $_POST['time_slot'];
+                $notes = isset($_POST['notes']) ? $_POST['notes'] : '';
+                
+                // Use a simpler approach - try common column combinations
+                $insert_success = false;
+                
+                // Try first combination (most common column names)
+                try {
+                    $insert_booking = "INSERT INTO bookings (
+                        user_id, provider_id, service_id, booking_date, status, 
+                        total_amount, payment_status, notes, booking_reference
+                    ) VALUES (?, ?, ?, ?, 'pending', ?, 'pending', ?, ?)";
+                    
+                    $stmt = $conn->prepare($insert_booking);
+                    
+                    if ($stmt) {
+                        $stmt->bind_param("iiisdss", 
+                            $user_id, $provider_id, $service_id, $booking_date, 
+                            $total_price, $notes, $booking_reference
+                        );
+                        
+                        if ($stmt->execute()) {
+                            $booking_id = $stmt->insert_id;
+                            $insert_success = true;
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("First booking insert attempt failed: " . $e->getMessage());
+                }
+                
+                // Try second combination if first failed
+                if (!$insert_success) {
+                    try {
+                        $insert_booking = "INSERT INTO bookings (
+                            user_id, provider_id, service_id, date, status, 
+                            price, payment_status, notes, reference_no
+                        ) VALUES (?, ?, ?, ?, 'pending', ?, 'pending', ?, ?)";
+                        
+                        $stmt = $conn->prepare($insert_booking);
+                        
+                        if ($stmt) {
+                            $stmt->bind_param("iiisdss", 
+                                $user_id, $provider_id, $service_id, $booking_date, 
+                                $total_price, $notes, $booking_reference
+                            );
+                            
+                            if ($stmt->execute()) {
+                                $booking_id = $stmt->insert_id;
+                                $insert_success = true;
+                            }
+                        }
+                    } catch (Exception $e) {
+                        error_log("Second booking insert attempt failed: " . $e->getMessage());
+                    }
+                }
+                
+                // Try third combination if second failed
+                if (!$insert_success) {
+                    try {
+                        $insert_booking = "INSERT INTO bookings (
+                            customer_id, provider_id, service_id, booking_date, booking_status, 
+                            amount, payment_status, comments, reference_id
+                        ) VALUES (?, ?, ?, ?, 'pending', ?, 'pending', ?, ?)";
+                        
+                        $stmt = $conn->prepare($insert_booking);
+                        
+                        if ($stmt) {
+                            $stmt->bind_param("iiisdss", 
+                                $user_id, $provider_id, $service_id, $booking_date, 
+                                $total_price, $notes, $booking_reference
+                            );
+                            
+                            if ($stmt->execute()) {
+                                $booking_id = $stmt->insert_id;
+                                $insert_success = true;
+                            }
+                        }
+                    } catch (Exception $e) {
+                        error_log("Third booking insert attempt failed: " . $e->getMessage());
+                    }
+                }
+                
+                // If all attempts failed, throw an exception
+                if (!$insert_success) {
+                    throw new Exception('Could not create booking record. Please contact support.');
+                }
+                
+                // Insert booking items from cart - try different table names
+                $items_inserted = false;
+                
+                // Try booking_items table
+                try {
+                    $insert_items = "INSERT INTO booking_items (
+                        booking_id, sub_service_id, quantity, price
+                    ) VALUES (?, ?, ?, ?)";
+                    
+                    $stmt = $conn->prepare($insert_items);
+                    
+                    if ($stmt) {
+                        foreach ($cart_items as $item) {
+                            $sub_service_id = $item['sub_service_id'];
+                            $quantity = $item['quantity'];
+                            $price = $item['price'];
+                            
+                            $stmt->bind_param("iiid", $booking_id, $sub_service_id, $quantity, $price);
+                            
+                            if ($stmt->execute()) {
+                                $items_inserted = true;
+                            }
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("First booking items insert attempt failed: " . $e->getMessage());
+                }
+                
+                // Try order_items table if booking_items failed
+                if (!$items_inserted) {
+                    try {
+                        $insert_items = "INSERT INTO order_items (
+                            order_id, service_id, quantity, price
+                        ) VALUES (?, ?, ?, ?)";
+                        
+                        $stmt = $conn->prepare($insert_items);
+                        
+                        if ($stmt) {
+                            foreach ($cart_items as $item) {
+                                $sub_service_id = $item['sub_service_id'];
+                                $quantity = $item['quantity'];
+                                $price = $item['price'];
+                                
+                                $stmt->bind_param("iiid", $booking_id, $sub_service_id, $quantity, $price);
+                                
+                                if ($stmt->execute()) {
+                                    $items_inserted = true;
+                                }
+                            }
+                        }
+                    } catch (Exception $e) {
+                        error_log("Second booking items insert attempt failed: " . $e->getMessage());
+                    }
+                }
+                
+                // Try to create notifications if the table exists
+                try {
+                    // Create notification for service provider
+                    $notify_provider = "INSERT INTO notifications (
+                        user_id, title, message, type, reference_id
+                    ) SELECT u.id, 'New Booking Request', 'You have a new booking request #$booking_reference', 'booking', ?
+                      FROM service_providers sp
+                      JOIN users u ON sp.user_id = u.id
+                      WHERE sp.provider_id = ?";
+                    
+                    $stmt = $conn->prepare($notify_provider);
+                    
+                    if ($stmt) {
+                        $stmt->bind_param("ii", $booking_id, $provider_id);
+                        $stmt->execute();
+                    }
+                    
+                    // Create notification for user
+                    $notify_user = "INSERT INTO notifications (
+                        user_id, title, message, type, reference_id
+                    ) VALUES (?, 'Booking Placed', 'Your booking #$booking_reference has been placed successfully', 'booking', ?)";
+                    
+                    $stmt = $conn->prepare($notify_user);
+                    
+                    if ($stmt) {
+                        $stmt->bind_param("ii", $user_id, $booking_id);
+                        $stmt->execute();
+                    }
+                } catch (Exception $e) {
+                    error_log("Notification creation failed: " . $e->getMessage());
+                    // Continue execution - notifications are not critical
+                }
+                
+                // Commit transaction
+                $conn->commit();
+                
+                // Clear cart
+                $_SESSION['cart'] = [];
+                $_SESSION['guest_cart'] = [];
+                
+                // Return success response
+                echo json_encode([
+                    'success' => true,
+                    'booking_id' => $booking_id,
+                    'booking_reference' => $booking_reference,
+                    'message' => 'Booking placed successfully!'
+                ]);
+                
+            } catch (Exception $e) {
+                // Rollback transaction on error
+                if (isset($conn) && $conn->ping()) {
+                    $conn->rollback();
+                }
+                
+                // Log error
+                error_log("BOOKING ERROR: " . $e->getMessage());
+                
+                // Return error response
+                echo json_encode([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ]);
+            }
+            exit; // Important: exit after JSON response
+            break;
+            
+        default:
+            // No action or unknown action
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Invalid action'
+                ]);
+                exit;
+            }
     }
-    elseif ($_POST['action'] === 'get_cart') {
-        echo json_encode([
-            'success' => true,
-            'cart_count' => count($_SESSION['cart']),
-            'cart_items' => $_SESSION['cart']
-        ]);
-        exit;
+}
+
+// Add this function to calculate total price
+function calculateCartTotal($cart) {
+    $total = 0;
+    foreach ($cart as $item) {
+        $total += $item['price'] * $item['quantity'];
     }
+    return $total;
 }
 
 // Handle the upload
@@ -300,6 +986,304 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
         $image_path = $target_path;
     }
 }
+
+// Add this function near other functions
+function generateBookingReference() {
+    return 'BK' . date('Ymd') . substr(uniqid(), -6);
+}
+
+// Function to handle visit booking
+function generateVisitReference() {
+    return 'VT' . date('Ymd') . substr(uniqid(), -6);
+}
+
+// Add visit booking fee constant
+define('VISIT_BOOKING_FEE', 99); // ₹99 fixed fee for visit booking
+
+// Handle visit booking action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'book_visit') {
+    try {
+        // Debug: Log session and POST data
+        error_log("DEBUG - Visit Booking - Session Data: " . json_encode($_SESSION));
+        error_log("DEBUG - Visit Booking - POST Data: " . json_encode($_POST));
+
+        // Remove login check
+        // if (!isset($_SESSION['user_id'])) {
+        //     throw new Exception('Please login to book a visit.');
+        // }
+
+        // Validate required fields
+        $required_fields = [
+            'visit_date' => 'Visit date',
+            'visit_time' => 'Visit time',
+            'visit_address' => 'Address',
+            'category_id' => 'Service category',
+            'visitor_name' => 'Your name',
+            'visitor_phone' => 'Phone number',
+            'visitor_email' => 'Email address'
+        ];
+
+        foreach ($required_fields as $field => $label) {
+            if (!isset($_POST[$field]) || empty($_POST[$field])) {
+                throw new Exception($label . ' is required.');
+            }
+        }
+
+        // Start transaction
+        $conn->begin_transaction();
+
+        // Prepare visit booking data
+        $visit_reference = generateVisitReference();
+        $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0; // Use 0 for guest users
+        $category_id = $_POST['category_id'];
+        $visit_date = $_POST['visit_date'];
+        $visit_time = $_POST['visit_time'];
+        $visit_address = $_POST['visit_address'];
+        $visit_notes = isset($_POST['visit_notes']) ? $_POST['visit_notes'] : '';
+        $visitor_name = $_POST['visitor_name'];
+        $visitor_phone = $_POST['visitor_phone'];
+        $visitor_email = $_POST['visitor_email'];
+        $visit_fee = VISIT_BOOKING_FEE;
+        $payment_method = 'COD'; // Default to COD
+        $payment_status = 'pending';
+        $visit_status = 'scheduled';
+
+        // Get a service provider for this category
+        $provider_query = "SELECT provider_id FROM service_providers WHERE category_id = ? AND is_active = 1 LIMIT 1";
+        $stmt = $conn->prepare($provider_query);
+        $stmt->bind_param("i", $category_id);
+        $stmt->execute();
+        $provider_result = $stmt->get_result();
+        
+        if ($provider_result->num_rows === 0) {
+            throw new Exception('No service provider available for this category.');
+        }
+        
+        $provider = $provider_result->fetch_assoc();
+        $provider_id = $provider['provider_id'];
+
+        // Modify the visit_bookings table to include guest information
+        $create_visit_bookings_table = "
+        CREATE TABLE IF NOT EXISTS visit_bookings (
+            visit_id INT AUTO_INCREMENT PRIMARY KEY,
+            visit_reference VARCHAR(20) NOT NULL,
+            user_id INT NOT NULL DEFAULT 0,
+            provider_id INT NOT NULL,
+            category_id INT NOT NULL,
+            visit_date DATE NOT NULL,
+            visit_time TIME NOT NULL,
+            address TEXT NOT NULL,
+            notes TEXT,
+            visitor_name VARCHAR(100),
+            visitor_phone VARCHAR(20),
+            visitor_email VARCHAR(100),
+            visit_fee DECIMAL(10,2) NOT NULL DEFAULT 99.00,
+            payment_method VARCHAR(20) NOT NULL DEFAULT 'COD',
+            payment_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            status VARCHAR(20) NOT NULL DEFAULT 'scheduled',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (provider_id) REFERENCES service_providers(provider_id),
+            FOREIGN KEY (category_id) REFERENCES tbl_categories(category_id)
+        )";
+
+        // Execute the create table statement if needed
+        $conn->query($create_visit_bookings_table);
+
+        // Insert visit booking with guest information
+        $visit_query = "INSERT INTO visit_bookings (
+            visit_reference, 
+            user_id, 
+            provider_id,
+            category_id,
+            visit_date, 
+            visit_time, 
+            address,
+            notes,
+            visitor_name,
+            visitor_phone,
+            visitor_email,
+            visit_fee,
+            payment_method,
+            payment_status,
+            status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        $stmt = $conn->prepare($visit_query);
+        if (!$stmt) {
+            throw new Exception('Database Error: ' . $conn->error);
+        }
+
+        $stmt->bind_param(
+            "siissssssssdsss",
+            $visit_reference,
+            $user_id,
+            $provider_id,
+            $category_id,
+            $visit_date,
+            $visit_time,
+            $visit_address,
+            $visit_notes,
+            $visitor_name,
+            $visitor_phone,
+            $visitor_email,
+            $visit_fee,
+            $payment_method,
+            $payment_status,
+            $visit_status
+        );
+
+        if (!$stmt->execute()) {
+            throw new Exception('Error booking visit: ' . $stmt->error);
+        }
+
+        // Commit transaction
+        $conn->commit();
+
+        echo json_encode([
+            'success' => true,
+            'visit_reference' => $visit_reference,
+            'message' => 'Visit booked successfully! A technician will visit you on the scheduled date.'
+        ]);
+        exit;
+
+    } catch (Exception $e) {
+        if (isset($conn) && $conn->ping()) {
+            $conn->rollback();
+        }
+        error_log("VISIT BOOKING ERROR: " . $e->getMessage());
+        echo json_encode([
+            'success' => false,
+            'message' => $e->getMessage()
+        ]);
+        exit;
+    }
+}
+
+// Add emergency booking fee constant
+define('EMERGENCY_BOOKING_FEE', 299); // ₹299 premium fee for emergency bookings
+
+// Handle emergency booking action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'book_emergency') {
+    try {
+        // Debug: Log session and POST data
+        error_log("DEBUG - Emergency Booking - Session Data: " . json_encode($_SESSION));
+        error_log("DEBUG - Emergency Booking - POST Data: " . json_encode($_POST));
+
+        // Validate required fields
+        $required_fields = [
+            'emergency_address' => 'Address',
+            'category_id' => 'Service category',
+            'emergency_issue' => 'Issue description',
+            'emergency_name' => 'Your name',
+            'emergency_phone' => 'Phone number',
+            'emergency_email' => 'Email address'
+        ];
+
+        foreach ($required_fields as $field => $label) {
+            if (!isset($_POST[$field]) || empty($_POST[$field])) {
+                throw new Exception($label . ' is required.');
+            }
+        }
+
+        // Start transaction
+        $conn->begin_transaction();
+
+        // Prepare emergency booking data
+        $emergency_reference = 'EM' . date('Ymd') . substr(uniqid(), -6);
+        $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0; // Use 0 for guest users
+        $category_id = $_POST['category_id'];
+        $emergency_address = $_POST['emergency_address'];
+        $emergency_issue = $_POST['emergency_issue'];
+        $emergency_name = $_POST['emergency_name'];
+        $emergency_phone = $_POST['emergency_phone'];
+        $emergency_email = $_POST['emergency_email'];
+        $emergency_fee = EMERGENCY_BOOKING_FEE;
+        $payment_method = 'COD'; // Default to COD
+        $payment_status = 'pending';
+        $emergency_status = 'urgent';
+
+        // Get a service provider for this category
+        $provider_query = "SELECT provider_id FROM service_providers WHERE category_id = ? AND is_active = 1 LIMIT 1";
+        $stmt = $conn->prepare($provider_query);
+        $stmt->bind_param("i", $category_id);
+        $stmt->execute();
+        $provider_result = $stmt->get_result();
+        
+        if ($provider_result->num_rows === 0) {
+            throw new Exception('No service provider available for this category.');
+        }
+        
+        $provider = $provider_result->fetch_assoc();
+        $provider_id = $provider['provider_id'];
+
+        // Insert emergency booking
+        $emergency_query = "INSERT INTO emergency_bookings (
+            emergency_reference, 
+            user_id, 
+            provider_id,
+            category_id,
+            address,
+            issue_description,
+            customer_name,
+            customer_phone,
+            customer_email,
+            emergency_fee,
+            payment_method,
+            payment_status,
+            status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        $stmt = $conn->prepare($emergency_query);
+        if (!$stmt) {
+            throw new Exception('Database Error: ' . $conn->error);
+        }
+
+        $stmt->bind_param(
+            "siissssssdsss",
+            $emergency_reference,
+            $user_id,
+            $provider_id,
+            $category_id,
+            $emergency_address,
+            $emergency_issue,
+            $emergency_name,
+            $emergency_phone,
+            $emergency_email,
+            $emergency_fee,
+            $payment_method,
+            $payment_status,
+            $emergency_status
+        );
+
+        if (!$stmt->execute()) {
+            throw new Exception('Error booking emergency service: ' . $stmt->error);
+        }
+
+        // Commit transaction
+        $conn->commit();
+
+        echo json_encode([
+            'success' => true,
+            'emergency_reference' => $emergency_reference,
+            'message' => 'Emergency service requested! A technician will contact you shortly.'
+        ]);
+        exit;
+
+    } catch (Exception $e) {
+        if (isset($conn) && $conn->ping()) {
+            $conn->rollback();
+        }
+        error_log("EMERGENCY BOOKING ERROR: " . $e->getMessage());
+        echo json_encode([
+            'success' => false,
+            'message' => $e->getMessage()
+        ]);
+        exit;
+    }
+}
+
+// ... rest of the code ...
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -336,12 +1320,19 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
 
         .category-header {
             margin-bottom: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
         }
 
         .category-title {
             font-size: 28px;
             color: #2d3748;
             margin-bottom: 10px;
+        }
+
+        .category-rating {
+            margin-bottom: 15px;
         }
 
         .service-item {
@@ -354,10 +1345,12 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
         }
 
         .service-header {
+            cursor: pointer;
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 20px;
-            margin-bottom: 15px;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
         }
 
         .service-image {
@@ -465,17 +1458,18 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
             margin-left: auto;
         }
 
-        .expand-btn.active {
+        .expand-btn i {
+            font-size: 14px;
+            transition: transform 0.2s;
+        }
+
+        .expand-btn:hover {
             background: #7e3af2;
             color: white;
-            transform: rotate(45deg);
         }
 
         .sub-services-panel {
             display: none;
-            padding: 15px;
-            background: #f8f9fa;
-            border-top: 1px solid #eee;
         }
 
         .sub-service-option {
@@ -844,9 +1838,325 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
                 font-size: 13px;
             }
         }
+
+        /* Add these new styles */
+        .cart-float {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1000;
+        }
+
+        .cart-float button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #7e3af2;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .cart-count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #e53e3e;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .add-to-cart-btn {
+            background: #7e3af2;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .add-to-cart-btn:hover {
+            background: #6c2bd9;
+        }
+
+        .success-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #48bb78;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out, fadeOut 0.5s ease-out 2s forwards;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+            }
+        }
+
+        /* Add styles for payment success modal */
+        .payment-success-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+        }
+
+        .payment-success-modal .modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            position: relative;
+            transform: scale(0.7);
+            transition: transform 0.3s ease-out;
+        }
+
+        .payment-success-modal.show .modal-content {
+            transform: scale(1);
+        }
+
+        .success-icon {
+            color: #28a745;
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .modal-buttons {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .modal-buttons button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+
+        .modal-buttons button:first-child {
+            background: #7e3af2;
+            color: white;
+        }
+
+        .modal-buttons button:last-child {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .modal-buttons button:hover {
+            opacity: 0.9;
+        }
+
+        .empty-cart {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .service-meta {
+            color: #666;
+            font-size: 14px;
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .price {
+            font-weight: 600;
+            color: #2d3748;
+            margin: 5px 0;
+            text-align: right;
+        }
+
+        .service-item {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .service-details h4 {
+            margin: 0 0 10px 0;
+            color: #2d3748;
+        }
+
+        #serviceCharge, #convenienceFee, #totalAmount {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .price-row.total {
+            font-size: 1.2em;
+            font-weight: 600;
+            border-top: 2px solid #e2e8f0;
+            margin-top: 10px;
+        }
+
+        .login-prompt-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .login-prompt-modal .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        .login-prompt-modal h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .login-prompt-modal .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .login-prompt-modal button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .login-prompt-modal button:last-child {
+            background: #f8f9fa;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .login-prompt-modal button:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Payment Summary Styles */
+        .payment-summary {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .payment-notice {
+            background: #e2e8f0;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .service-name {
+            flex: 2;
+        }
+        
+        .price-details {
+            flex: 1;
+            text-align: right;
+        }
+        
+        .service-type {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .final-price {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .remove-item {
+            background: none;
+            border: none;
+            color: #ff4444;
+            cursor: pointer;
+            padding: 5px;
+            margin-left: 10px;
+        }
+        
+        .error {
+            color: #ff4444;
+            text-align: center;
+            padding: 10px;
+        }
     </style>
 </head>
 <body>
+    
     <div class="booking-container">
         <!-- Services List Section -->
         <div class="services-list">
@@ -874,7 +2184,7 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
                     <span><?php echo $avg_rating; ?> (<?php echo number_format($booking_count/1000, 1); ?>K bookings)</span>
                 </div>
             </div>
-
+            
             <?php foreach ($services as $service): ?>
                 <div class="service-item">
                     <div class="service-header" onclick="toggleSubServices(<?php echo $service['service_id']; ?>)">
@@ -929,12 +2239,12 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
                                                         </div>
                                                     <?php endif; ?>
                                                     
-                                                    <button class="book-now-btn" 
-                                                            onclick="proceedToCheckout(<?php echo $sub['sub_service_id']; ?>, 
+                                                    <button class="add-to-cart-btn" 
+                                                            onclick="addToCart(<?php echo $sub['sub_service_id']; ?>, 
                                                              '<?php echo htmlspecialchars($sub['sub_service_name']); ?>', 
                                                              <?php echo $sub['price']; ?>,
                                                              '<?php echo $pricing_type; ?>')">
-                                                        Book
+                                                        Add to Cart
                                                     </button>
                                                 </div>
                                             </td>
@@ -958,7 +2268,10 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
                     <div class="step" id="step3">3. Payment</div>
                 </div>
 
-                <form id="checkoutForm" action="process_booking.php" method="POST">
+                <!-- Add this hidden input at the beginning of your checkout form -->
+                <form id="checkoutForm" method="post">
+                    <input type="hidden" name="service_id" id="service_id_main" value="<?php echo isset($_GET['service_id']) ? htmlspecialchars($_GET['service_id']) : ''; ?>">
+                    
                     <div class="checkout-section" id="serviceDetails">
                         <h3>Service Summary</h3>
                         <div id="selectedServiceInfo" class="service-summary"></div>
@@ -976,74 +2289,110 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
                                 <span id="totalAmount"></span>
                             </div>
                         </div>
-                        <button type="button" class="next-btn" onclick="showStep(2)">Continue</button>
+                        <div class="form-actions">
+                            <button type="button" class="next-btn" onclick="showStep(2)">Next: Schedule</button>
+                        </div>
                     </div>
 
                     <div class="checkout-section" id="scheduleSection" style="display: none;">
-                        <h3>Schedule Service</h3>
+                        <!-- Schedule content -->
+                        <h3>Schedule Your Service</h3>
+                        
                         <div class="form-group">
-                            <label>Preferred Date</label>
-                            <input type="date" name="booking_date" required min="<?php echo date('Y-m-d'); ?>">
+                            <label for="booking_date">Select Date</label>
+                            <input type="date" name="booking_date" id="booking_date" class="form-control" min="<?php echo date('Y-m-d'); ?>" required>
                         </div>
+                        
                         <div class="form-group">
-                            <label>Preferred Time</label>
-                            <select name="booking_time" required>
-                                <?php for($i = 9; $i <= 17; $i++): ?>
-                                    <option value="<?php echo sprintf('%02d:00', $i); ?>">
-                                        <?php echo date('h:i A', strtotime(sprintf('%02d:00', $i))); ?>
-                                    </option>
-                                <?php endfor; ?>
+                            <label for="time_slot">Select Time</label>
+                            <select name="time_slot" id="time_slot" class="form-control" required>
+                                <option value="">Select a time slot</option>
+                                <option value="09:00:00">9:00 AM</option>
+                                <option value="10:00:00">10:00 AM</option>
+                                <option value="11:00:00">11:00 AM</option>
+                                <option value="12:00:00">12:00 PM</option>
+                                <option value="13:00:00">1:00 PM</option>
+                                <option value="14:00:00">2:00 PM</option>
+                                <option value="15:00:00">3:00 PM</option>
+                                <option value="16:00:00">4:00 PM</option>
+                                <option value="17:00:00">5:00 PM</option>
                             </select>
                         </div>
+                        
                         <div class="form-group">
-                            <label>Service Address</label>
-                            <textarea name="address" required></textarea>
+                            <label for="notes">Special Instructions (Optional)</label>
+                            <textarea name="notes" id="notes" class="form-control" rows="3" placeholder="Any special instructions or requirements"></textarea>
                         </div>
-                        <button type="button" class="next-btn" onclick="showStep(3)">Proceed to Payment</button>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="back-btn" onclick="showStep(1)">Back</button>
+                            <button type="button" class="next-btn" id="schedule-next-btn">Next: Payment</button>
+                        </div>
                     </div>
 
                     <div class="checkout-section" id="paymentSection" style="display: none;">
                         <h3>Payment</h3>
-                        <div class="payment-methods">
-                            <label class="payment-option">
-                                <input type="radio" name="payment_method" value="razorpay" checked>
-                                <span>G Pay</span>
-                                
-                            </label>
-                            <label class="payment-option">
-                                <input type="radio" name="payment_method" value="razorpay" checked>
-                                <span>Credit card</span>
-                                
-                            </label>
-                            <label class="payment-option">
-                                <input type="radio" name="payment_method" value="razorpay" checked>
-                                <span>COD</span>
-                                
-                            </label>
+                        <div class="payment-summary">
+                            <h4>Order Summary</h4>
+                            <div class="price-row">
+                                <span>Service Charge</span>
+                                <span id="paymentServiceCharge"></span>
+                            </div>
+                            <div class="price-row">
+                                <span>Convenience Fee</span>
+                                <span id="paymentConvenienceFee"></span>
+                            </div>
+                            <div class="price-row total">
+                                <span>Total Amount</span>
+                                <span id="paymentTotalAmount"></span>
+                            </div>
                         </div>
-                        <button type="button" class="pay-btn" onclick="processPayment()">Pay Now</button>
+                        
+                        <!-- Add hidden fields to ensure all required data is included -->
+                        <input type="hidden" name="service_id" id="service_id_payment">
+                        <input type="hidden" name="booking_date" id="booking_date_payment">
+                        <input type="hidden" name="time_slot" id="time_slot_payment">
+                        <input type="hidden" name="convenience_fee" id="convenience_fee_payment">
+                        
+                        <div class="payment-notice">
+                            <p>You will be redirected to our secure payment gateway after placing your order.</p>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="back-btn" onclick="showStep(2)">Back</button>
+                            <button type="button" class="pay-btn" onclick="placeBooking()">Place Order & Proceed to Payment</button>
+                        </div>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
+    <!-- Add a floating cart button -->
+    <div id="cart-floating-button" class="cart-float">
+        <span class="cart-count">0</span>
+        <button onclick="showCart()">
+            <i class="fas fa-shopping-cart"></i>
+        </button>
+    </div>
+
     <script>
-    function toggleSubServices(serviceId) {
+     function toggleSubServices(serviceId) {
         const subServices = document.getElementById(`sub-services-${serviceId}`);
         const icon = document.getElementById(`icon-${serviceId}`);
-        const expandBtn = icon.parentElement;
         
-        if (subServices.style.display === 'block') {
-            subServices.style.display = 'none';
-            expandBtn.classList.remove('active');
-            icon.classList.remove('fa-minus');
-            icon.classList.add('fa-plus');
-        } else {
+        if (!subServices || !icon) {
+            console.error('Elements not found:', { subServices, icon });
+            return;
+        }
+        
+        // Toggle display
+        if (subServices.style.display === '' || subServices.style.display === 'none') {
             subServices.style.display = 'block';
-            expandBtn.classList.add('active');
-            icon.classList.remove('fa-plus');
-            icon.classList.add('fa-minus');
+            icon.className = 'fas fa-minus';
+        } else {
+            subServices.style.display = 'none';
+            icon.className = 'fas fa-plus';
         }
     }
 
@@ -1121,35 +2470,235 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
         document.getElementById('checkoutModal').style.display = 'block';
     }
 
-    function showStep(stepNumber) {
-        // Update steps indicator
-        document.querySelectorAll('.step').forEach((step, index) => {
-            step.classList.toggle('active', index + 1 <= stepNumber);
-        });
+    function validateScheduleAndProceed() {
+        console.log('validateScheduleAndProceed called');
+        
+        // Get the service ID from multiple possible sources
+        let serviceId = document.getElementById('service_id_main').value;
+        
+        // If not found, try to get from session storage
+        if (!serviceId) {
+            serviceId = sessionStorage.getItem('serviceId');
+        }
+        
+        // If still not found, try to get from URL parameter
+        if (!serviceId) {
+            const urlParams = new URLSearchParams(window.location.search);
+            serviceId = urlParams.get('service_id');
+        }
+        
+        // Get the date and time slot values
+        const bookingDate = document.querySelector('input[name="booking_date"]').value;
+        const timeSlot = document.querySelector('select[name="time_slot"]').value;
+        
+        console.log('Service ID:', serviceId);
+        console.log('Booking date:', bookingDate);
+        console.log('Time slot:', timeSlot);
+        
+        // Validate all required fields
+        if (!serviceId) {
+            // Instead of alerting, let's try to recover
+            // Check if there's a service in the cart
+            const cartItems = document.querySelectorAll('.cart-item');
+            if (cartItems.length > 0) {
+                // Try to extract service ID from the first cart item
+                const firstItem = cartItems[0];
+                if (firstItem.dataset.serviceId) {
+                    serviceId = firstItem.dataset.serviceId;
+                    console.log('Recovered service ID from cart item:', serviceId);
+                    document.getElementById('service_id_main').value = serviceId;
+                    sessionStorage.setItem('serviceId', serviceId);
+                } else {
+                    alert('Service information is missing. Please select a service again.');
+                    showStep(1);
+                    return;
+                }
+            } else {
+                alert('Your cart is empty. Please add a service before proceeding.');
+                showStep(1);
+                return;
+            }
+        }
+        
+        if (!bookingDate) {
+            alert('Please select a date for your service');
+            return;
+        }
+        
+        if (!timeSlot) {
+            alert('Please select a time slot for your service');
+            return;
+        }
+        
+        // Store these values in session storage to ensure they're available
+        sessionStorage.setItem('serviceId', serviceId);
+        sessionStorage.setItem('bookingDate', bookingDate);
+        sessionStorage.setItem('timeSlot', timeSlot);
+        
+        // If validation passes, proceed to payment step
+        console.log('Validation passed, showing step 3');
+        showStep(3);
+    }
 
+    function showStep(step) {
+        console.log('Showing step:', step); // Debug log
+        
         // Hide all sections
-        document.querySelectorAll('.checkout-section').forEach(section => {
-            section.style.display = 'none';
-        });
-
-        // Show current section
-        switch(stepNumber) {
-            case 1:
-                document.getElementById('serviceDetails').style.display = 'block';
-                break;
-            case 2:
-                document.getElementById('scheduleSection').style.display = 'block';
-                break;
-            case 3:
-                document.getElementById('paymentSection').style.display = 'block';
-                break;
+        document.getElementById('serviceDetails').style.display = 'none';
+        document.getElementById('scheduleSection').style.display = 'none';
+        document.getElementById('paymentSection').style.display = 'none';
+        
+        // Remove active class from all steps
+        document.getElementById('step1').classList.remove('active');
+        document.getElementById('step2').classList.remove('active');
+        document.getElementById('step3').classList.remove('active');
+        
+        // Show the selected section and mark step as active
+        if (step === 1) {
+            document.getElementById('serviceDetails').style.display = 'block';
+            document.getElementById('step1').classList.add('active');
+        } else if (step === 2) {
+            document.getElementById('scheduleSection').style.display = 'block';
+            document.getElementById('step2').classList.add('active');
+        } else if (step === 3) {
+            console.log('Preparing payment section'); // Debug log
+            
+            // Get values from session storage if available
+            const serviceId = sessionStorage.getItem('serviceId') || document.querySelector('input[name="service_id"]').value;
+            const bookingDate = sessionStorage.getItem('bookingDate') || document.querySelector('input[name="booking_date"]').value;
+            const timeSlot = sessionStorage.getItem('timeSlot') || document.querySelector('select[name="time_slot"]').value;
+            const convenienceFee = document.querySelector('input[name="convenience_fee"]')?.value || '0';
+            
+            console.log('Retrieved values for payment:');
+            console.log('Service ID:', serviceId);
+            console.log('Booking Date:', bookingDate);
+            console.log('Time Slot:', timeSlot);
+            
+            // Update payment section with the latest totals
+            document.getElementById('paymentServiceCharge').textContent = document.getElementById('serviceCharge').textContent;
+            document.getElementById('paymentConvenienceFee').textContent = document.getElementById('convenienceFee').textContent;
+            document.getElementById('paymentTotalAmount').textContent = document.getElementById('totalAmount').textContent;
+            
+            // Set values to hidden fields
+            document.getElementById('service_id_payment').value = serviceId;
+            document.getElementById('booking_date_payment').value = bookingDate;
+            document.getElementById('time_slot_payment').value = timeSlot;
+            document.getElementById('convenience_fee_payment').value = convenienceFee;
+            
+            document.getElementById('paymentSection').style.display = 'block';
+            document.getElementById('step3').classList.add('active');
+            
+            console.log('Payment section should be visible now'); // Debug log
+            console.log('Hidden field values:');
+            console.log('service_id_payment:', document.getElementById('service_id_payment').value);
+            console.log('booking_date_payment:', document.getElementById('booking_date_payment').value);
+            console.log('time_slot_payment:', document.getElementById('time_slot_payment').value);
         }
     }
 
-    function processPayment() {
-        // Implement your payment gateway integration here
-        // For example, Razorpay integration
-        alert('Redirecting to payment gateway...');
+    function placeBooking() {
+        console.log('placeBooking called');
+        
+        // Get values from hidden fields
+        const serviceId = document.getElementById('service_id_payment').value;
+        const bookingDate = document.getElementById('booking_date_payment').value;
+        const timeSlot = document.getElementById('time_slot_payment').value;
+        
+        console.log('Values from hidden fields:');
+        console.log('Service ID:', serviceId);
+        console.log('Booking Date:', bookingDate);
+        console.log('Time Slot:', timeSlot);
+        
+        // Validate required fields before submission
+        if (!serviceId || !bookingDate || !timeSlot) {
+            // Try to get values from session storage as a fallback
+            const sessionServiceId = sessionStorage.getItem('serviceId');
+            const sessionBookingDate = sessionStorage.getItem('bookingDate');
+            const sessionTimeSlot = sessionStorage.getItem('timeSlot');
+            
+            console.log('Values from session storage:');
+            console.log('Service ID:', sessionServiceId);
+            console.log('Booking Date:', sessionBookingDate);
+            console.log('Time Slot:', sessionTimeSlot);
+            
+            if (!sessionServiceId || !sessionBookingDate || !sessionTimeSlot) {
+                showPaymentError('Please complete all required booking information');
+                return;
+            }
+            
+            // Use session storage values
+            const formData = new FormData(document.getElementById('checkoutForm'));
+            formData.append('action', 'place_booking');
+            formData.append('service_id', sessionServiceId);
+            formData.append('booking_date', sessionBookingDate);
+            formData.append('time_slot', sessionTimeSlot);
+            
+            processBookingSubmission(formData);
+        } else {
+            // Use hidden field values
+            const formData = new FormData(document.getElementById('checkoutForm'));
+            formData.append('action', 'place_booking');
+            
+            processBookingSubmission(formData);
+        }
+    }
+
+    function processBookingSubmission(formData) {
+        // Check if cart is empty - use PHP session variable instead of DOM
+        // We'll rely on the server to validate if the cart is empty
+        
+        // Show loading indicator
+        showLoadingOverlay('Processing your booking...');
+        
+        // Log all form data for debugging
+        console.log('Form data being submitted:');
+        for (let pair of formData.entries()) {
+            console.log(pair[0] + ': ' + pair[1]);
+        }
+        
+        // Add a flag to indicate we've already checked the cart
+        formData.append('cart_validated', 'true');
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            // Check if response is valid JSON
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                // If not JSON, get text and log it for debugging
+                return response.text().then(text => {
+                    console.error('Non-JSON response:', text);
+                    throw new Error('Invalid server response');
+                });
+            }
+        })
+        .then(data => {
+            // Hide loading indicator
+            hideLoadingOverlay();
+            
+            if (data.success) {
+                // Clear session storage
+                sessionStorage.removeItem('serviceId');
+                sessionStorage.removeItem('bookingDate');
+                sessionStorage.removeItem('timeSlot');
+                
+                // Redirect to payment page
+                window.location.href = 'payment.php?booking_id=' + data.booking_id;
+            } else {
+                showPaymentError(data.message || 'Error placing booking');
+            }
+        })
+        .catch(error => {
+            // Hide loading indicator
+            hideLoadingOverlay();
+            
+            console.error('Error:', error);
+            showPaymentError('Error processing your booking. Please try again.');
+        });
     }
 
     // Close modal handlers
@@ -1162,6 +2711,545 @@ if(isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
             document.getElementById('checkoutModal').style.display = 'none';
         }
     }
-    </script>
+
+    // Add these new JavaScript functions
+    let cart = [];
+
+    function showSuccessMessage(message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'success-message';
+        messageDiv.textContent = message;
+        document.body.appendChild(messageDiv);
+
+        // Remove the message after animation completes
+        setTimeout(() => {
+            messageDiv.remove();
+        }, 2500);
+    }
+
+    function addToCart(subServiceId, name, basePrice, pricingType) {
+        console.log('Adding to cart:', subServiceId, name, basePrice, pricingType);
+        
+        // Set the service ID in the main hidden field
+        document.getElementById('service_id_main').value = subServiceId;
+        
+        // Store in session storage as well
+        sessionStorage.setItem('serviceId', subServiceId);
+        
+        let quantity = 1;
+        let measurement = 0;
+        let finalPrice = basePrice;
+
+        if (pricingType === 'quantity') {
+            quantity = parseInt(document.getElementById(`quantity-${subServiceId}`).value);
+            finalPrice = basePrice * quantity;
+        } else if (pricingType === 'measurement') {
+            measurement = parseFloat(document.getElementById(`measurement-${subServiceId}`).value);
+            if (!measurement) {
+                alert('Please enter the measurement in meters');
+                return;
+            }
+            finalPrice = basePrice * measurement;
+        }
+
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'add_to_cart',
+                sub_service_id: subServiceId,
+                quantity: quantity,
+                measurement: measurement,
+                final_price: finalPrice
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateCartCount();
+                showSuccessMessage('Item added to cart');
+            } else {
+                showPaymentError(data.message || 'Error adding item to cart');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showPaymentError('Error adding item to cart');
+        });
+    }
+
+    function updateCartCount() {
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'get_cart'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.querySelector('.cart-count').textContent = data.cart_count;
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    // Initialize cart count when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCartCount();
+    });
+
+    function showCart() {
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'get_cart'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let cartItems = data.cart_items;
+                
+                // Update service summary with all cart items
+                let summaryHTML = Object.values(cartItems).map(item => {
+                    // Debug log to see the actual item data
+                    console.log('Cart item data:', item);
+                    
+                    // Access price from the correct property - it might be unit_price in your data structure
+                    const price = parseFloat(item.unit_price || item.price || 0);
+                    const quantity = parseInt(item.quantity || 1);
+                    const measurement = parseFloat(item.measurement || 0);
+                    const finalPrice = parseFloat(item.final_price || price * (item.pricing_type === 'measurement' ? measurement : quantity) || 0);
+                    
+                    // Debug log for parsed values
+                    console.log('Parsed values:', {
+                        price,
+                        quantity,
+                        measurement,
+                        finalPrice,
+                        pricingType: item.pricing_type
+                    });
+
+                    return `
+                        <div class="cart-item" data-id="${item.sub_service_id}">
+                            <div class="service-name">
+                                <strong>${item.sub_service_name || 'Service'}</strong>
+                                <p class="service-type">${item.service_name || ''}</p>
+                            </div>
+                            
+                            <div class="price-details">
+                                ${item.pricing_type === 'measurement' 
+                                    ? `<p>Measurement: ${measurement} meters × ₹${price.toFixed(2)}</p>`
+                                    : `<p>Quantity: ${quantity} units × ₹${price.toFixed(2)}</p>`
+                                }
+                                <p class="final-price">Price: ₹${finalPrice.toFixed(2)}</p>
+                            </div>
+                            
+                            <button class="remove-item" data-sub-service-id="${item.sub_service_id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                // Calculate totals
+                const subtotal = Object.values(cartItems).reduce((sum, item) => {
+                    const itemPrice = parseFloat(item.final_price || 0);
+                    return sum + itemPrice;
+                }, 0);
+
+                const convenienceFee = subtotal * 0.05; // 5% convenience fee
+                const grandTotal = subtotal + convenienceFee;
+
+                // If cart is empty, show message
+                if (Object.keys(cartItems).length === 0) {
+                    summaryHTML = '<div class="empty-cart">Your cart is empty</div>';
+                }
+
+                // Update the DOM with calculated values
+                document.getElementById('selectedServiceInfo').innerHTML = summaryHTML;
+                document.getElementById('serviceCharge').textContent = `₹${subtotal.toFixed(2)}`;
+                document.getElementById('convenienceFee').textContent = `₹${convenienceFee.toFixed(2)}`;
+                document.getElementById('totalAmount').textContent = `₹${grandTotal.toFixed(2)}`;
+
+                // Also update payment section totals if they exist
+                const paymentServiceCharge = document.getElementById('paymentServiceCharge');
+                const paymentConvenienceFee = document.getElementById('paymentConvenienceFee');
+                const paymentTotalAmount = document.getElementById('paymentTotalAmount');
+
+                if (paymentServiceCharge) paymentServiceCharge.textContent = `₹${subtotal.toFixed(2)}`;
+                if (paymentConvenienceFee) paymentConvenienceFee.textContent = `₹${convenienceFee.toFixed(2)}`;
+                if (paymentTotalAmount) paymentTotalAmount.textContent = `₹${grandTotal.toFixed(2)}`;
+
+                // Debug log the calculations
+                console.log('Price calculations:', {
+                    cartItems,
+                    subtotal,
+                    convenienceFee,
+                    grandTotal
+                });
+
+                // Show checkout modal
+                showStep(1);
+                document.getElementById('checkoutModal').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showPaymentError('Error loading cart');
+        });
+    }
+
+    function calculateTotal() {
+        let subtotal = cart.reduce((sum, item) => sum + item.finalPrice, 0);
+        return subtotal;
+    }
+
+    function showPaymentError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #f44336;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        `;
+        errorDiv.textContent = message;
+        
+        document.body.appendChild(errorDiv);
+        
+        setTimeout(() => {
+            errorDiv.style.animation = 'fadeOut 0.3s ease-out forwards';
+            setTimeout(() => errorDiv.remove(), 300);
+        }, 3000);
+    }
+
+    function processPayment() {
+        // Check if user is logged in
+        <?php if (!isset($_SESSION['user_id'])): ?>
+            // Show login prompt
+            showLoginPrompt();
+        <?php else: ?>
+            // Proceed with payment for logged-in users
+            placeBooking();
+        <?php endif; ?>
+    }
+
+    function showLoginPrompt() {
+        // Create modal for login/signup prompt
+        const modalHTML = `
+            <div class="login-prompt-modal">
+                <div class="modal-content">
+                    <h3>Login Required</h3>
+                    <p>Please login or create an account to complete your booking.</p>
+                    <div class="button-group">
+                        <button onclick="window.location.href='login.php?redirect=services.php'">Login</button>
+                        <button onclick="window.location.href='register.php?redirect=services.php'">Create Account</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to body
+        const modalElement = document.createElement('div');
+        modalElement.innerHTML = modalHTML;
+        document.body.appendChild(modalElement.firstChild);
+        
+        // Add event listener to close when clicking outside
+        document.querySelector('.login-prompt-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.remove();
+            }
+        });
+    }
+
+    function removeFromCart(subServiceId) {
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'remove_from_cart',
+                sub_service_id: subServiceId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccessMessage('Item removed from cart');
+                updateCartCount();
+                showCart();
+            } else {
+                showPaymentError(data.message || 'Error removing item from cart');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showPaymentError('Error removing item from cart');
+        });
+    }
+
+    // Add loading overlay functions
+    function showLoadingOverlay(message) {
+        const overlay = document.createElement('div');
+        overlay.id = 'loadingOverlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        `;
+        
+        const spinner = document.createElement('div');
+        spinner.className = 'spinner';
+        spinner.style.cssText = `
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+            margin-bottom: 20px;
+        `;
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        
+        const messageElement = document.createElement('p');
+        messageElement.textContent = message || 'Loading...';
+        messageElement.style.cssText = `
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+        `;
+        
+        overlay.appendChild(spinner);
+        overlay.appendChild(messageElement);
+        document.head.appendChild(style);
+        document.body.appendChild(overlay);
+    }
+
+    function hideLoadingOverlay() {
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+            overlay.remove();
+        }
+    }
+
+    // Add this after your document is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add event listener to the schedule next button
+        const scheduleNextBtn = document.getElementById('schedule-next-btn');
+        if (scheduleNextBtn) {
+            scheduleNextBtn.addEventListener('click', validateScheduleAndProceed);
+            console.log('Added event listener to schedule next button');
+        } else {
+            console.error('Schedule next button not found');
+        }
+        
+        // Initialize other event listeners and UI elements
+        initCheckout();
+    });
+
+    function initCheckout() {
+        // Initialize datepicker or other UI components if needed
+        console.log('Checkout initialized');
+    }
+
+    function updateCartDisplay(cartData) {
+        console.log('Cart Data:', cartData); // Debug log
+
+        if (!cartData.success) {
+            console.error('Error in cart data:', cartData.message);
+            return;
+        }
+
+        const cartItems = cartData.cart_items || [];
+        let cartHtml = '';
+
+        // Generate HTML for each cart item
+        cartItems.forEach(item => {
+            // Ensure all numeric values are properly parsed
+            const unitPrice = parseFloat(item.unit_price || 0);
+            const quantity = parseFloat(item.quantity || 1);
+            const measurement = parseFloat(item.measurement || 0);
+            const finalPrice = parseFloat(item.final_price || 0);
+
+            // Create service details HTML
+            cartHtml += `
+                <div class="cart-item" data-id="${item.sub_service_id}">
+                    <div class="service-name">
+                        <strong>${item.sub_service_name || 'Service'}</strong>
+                        <p class="service-type">${item.service_name || ''}</p>
+                    </div>
+                    
+                    <div class="price-details">
+                        ${item.pricing_type === 'measurement' 
+                            ? `<p>Measurement: ${measurement} meters × ₹${unitPrice.toFixed(2)}</p>`
+                            : `<p>Quantity: ${quantity} units × ₹${unitPrice.toFixed(2)}</p>`
+                        }
+                        <p class="final-price">Price: ₹${finalPrice.toFixed(2)}</p>
+                    </div>
+                    
+                    <button class="remove-item" data-sub-service-id="${item.sub_service_id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        });
+
+        // Update service summary section
+        const serviceSummary = document.querySelector('.service-summary');
+        if (serviceSummary) {
+            if (cartItems.length > 0) {
+                serviceSummary.innerHTML = cartHtml;
+            } else {
+                serviceSummary.innerHTML = '<p>Your cart is empty</p>';
+            }
+        }
+
+        // Calculate and update totals
+        const subtotal = parseFloat(cartData.subtotal || 0);
+        const convenienceFee = parseFloat(cartData.convenience_fee || 0);
+        const total = subtotal + convenienceFee;
+
+        // Update all price displays
+        const priceElements = {
+            '.subtotal': subtotal,
+            '.service-charge': subtotal,
+            '.convenience-fee': convenienceFee,
+            '.total-amount': total
+        };
+
+        for (const [selector, value] of Object.entries(priceElements)) {
+            const element = document.querySelector(selector);
+            if (element) {
+                element.textContent = `₹${value.toFixed(2)}`;
+            }
+        }
+    }
+
+    // Function to load cart data
+    async function loadCart() {
+        try {
+            const response = await fetch('services.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=get_cart'
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const data = await response.json();
+            console.log('Received cart data:', data); // Debug log
+            updateCartDisplay(data);
+        } catch (error) {
+            console.error('Error loading cart:', error);
+            // Show error message to user
+            const serviceSummary = document.querySelector('.service-summary');
+            if (serviceSummary) {
+                serviceSummary.innerHTML = '<p class="error">Error loading cart. Please try again.</p>';
+            }
+        }
+    }
+
+    // Add CSS styles for better display
+    const styles = `
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .service-name {
+            flex: 2;
+        }
+        
+        .price-details {
+            flex: 1;
+            text-align: right;
+        }
+        
+        .service-type {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .final-price {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .remove-item {
+            background: none;
+            border: none;
+            color: #ff4444;
+            cursor: pointer;
+            padding: 5px;
+            margin-left: 10px;
+        }
+        
+        .error {
+            color: #ff4444;
+            text-align: center;
+            padding: 10px;
+        }
+    `;
+
+    // Add styles to document
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = styles;
+    document.head.appendChild(styleSheet);
+
+    // Initialize cart when page loads
+    document.addEventListener('DOMContentLoaded', loadCart);
+
+    // Event listener for remove buttons
+    document.addEventListener('click', function(e) {
+        const removeButton = e.target.closest('.remove-item');
+        if (removeButton) {
+            const subServiceId = removeButton.dataset.subServiceId;
+            if (subServiceId) {
+                removeFromCart(subServiceId);
+            }
+        }
+    });
+</script>
 </body>
-</html>
+</html> 

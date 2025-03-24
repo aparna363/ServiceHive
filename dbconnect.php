@@ -101,6 +101,22 @@ try {
             INDEX idx_category (category_id),
             INDEX idx_provider (provider_id),
             INDEX idx_active (is_active)
+        )",
+
+        'cart' => "CREATE TABLE IF NOT EXISTS cart (
+            cart_id INT AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            sub_service_id INT NOT NULL,
+            quantity DECIMAL(10,2) DEFAULT 1,
+            measurement DECIMAL(10,2) DEFAULT 0,
+            final_price DECIMAL(10,2) NOT NULL,
+            status VARCHAR(20) DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (cart_id),
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (sub_service_id) REFERENCES tbl_sub_services(sub_service_id),
+            UNIQUE KEY unique_user_service (user_id, sub_service_id)
         )"
     ];
 
@@ -225,6 +241,80 @@ try {
             INDEX idx_login_time (login_time)
         )",
 
+        'verification_status' => "CREATE TABLE IF NOT EXISTS verification_status (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            provider_id INT NOT NULL,
+            id_type ENUM('aadhar', 'pan', 'voter', 'driving') NOT NULL,
+            id_number VARCHAR(20) NOT NULL,
+            id_proof_front VARCHAR(255) NOT NULL,
+            id_proof_back VARCHAR(255) NOT NULL,
+            address_proof VARCHAR(255) NOT NULL,
+            documents_uploaded ENUM('pending', 'completed', 'rejected') DEFAULT 'pending',
+            admin_notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (provider_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_provider (provider_id),
+            INDEX idx_status (documents_uploaded)
+        )",
+
+        'verification_documents' => "CREATE TABLE IF NOT EXISTS verification_documents (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            provider_id INT NOT NULL,
+            id_type ENUM('aadhar', 'pan', 'voter', 'driving') NOT NULL,
+            id_number VARCHAR(50) NOT NULL,
+            id_proof_front VARCHAR(255) NOT NULL,
+            id_proof_back VARCHAR(255) NOT NULL,
+            address_proof VARCHAR(255) NOT NULL,
+            status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+            admin_notes TEXT DEFAULT NULL,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (provider_id) REFERENCES service_providers(provider_id) ON DELETE CASCADE,
+            INDEX idx_provider (provider_id),
+            INDEX idx_status (status)
+        )",
+        'visit_bookings' => "CREATE TABLE IF NOT EXISTS visit_bookings (
+            visit_id INT AUTO_INCREMENT PRIMARY KEY,
+            visit_reference VARCHAR(20) NOT NULL,
+            user_id INT NOT NULL,
+            provider_id INT NOT NULL,
+            category_id INT NOT NULL,
+            visit_date DATE NOT NULL,
+            visit_time TIME NOT NULL,
+            address TEXT NOT NULL,
+            notes TEXT,
+            visit_fee DECIMAL(10,2) NOT NULL DEFAULT 99.00,
+            payment_method VARCHAR(20) NOT NULL DEFAULT 'COD',
+            payment_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            status VARCHAR(20) NOT NULL DEFAULT 'scheduled',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (provider_id) REFERENCES service_providers(provider_id),
+            FOREIGN KEY (category_id) REFERENCES tbl_categories(category_id)
+        )",
+        
+        'emergency_bookings' => "CREATE TABLE IF NOT EXISTS emergency_bookings (
+            emergency_id INT AUTO_INCREMENT PRIMARY KEY,
+            emergency_reference VARCHAR(20) NOT NULL,
+            user_id INT NOT NULL DEFAULT 0,
+            provider_id INT NOT NULL,
+            category_id INT NOT NULL,
+            address TEXT NOT NULL,
+            issue_description TEXT NOT NULL,
+            customer_name VARCHAR(100) NOT NULL,
+            customer_phone VARCHAR(20) NOT NULL,
+            customer_email VARCHAR(100) NOT NULL,
+            emergency_fee DECIMAL(10,2) NOT NULL DEFAULT 299.00,
+            payment_method VARCHAR(20) NOT NULL DEFAULT 'COD',
+            payment_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            status VARCHAR(20) NOT NULL DEFAULT 'urgent',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (provider_id) REFERENCES service_providers(provider_id),
+            FOREIGN KEY (category_id) REFERENCES tbl_categories(category_id)
+        )"
     ];
 
     // Create remaining tables
@@ -245,7 +335,14 @@ try {
         "ALTER TABLE service_providers ADD FOREIGN KEY IF NOT EXISTS (category_id) REFERENCES tbl_categories(category_id)",
         "ALTER TABLE tbl_categories ADD COLUMN IF NOT EXISTS image_path VARCHAR(255) DEFAULT NULL",
         "ALTER TABLE tbl_services ADD COLUMN IF NOT EXISTS image_path VARCHAR(255)",
-        "ALTER TABLE tbl_sub_services ADD COLUMN IF NOT EXISTS images VARCHAR(255)"
+        "ALTER TABLE tbl_sub_services ADD COLUMN IF NOT EXISTS images VARCHAR(255)",
+        "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_id VARCHAR(100)",
+        "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)",
+        "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_amount DECIMAL(10,2)",
+        "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2) DEFAULT NULL AFTER total_amount",
+        "ALTER TABLE cart ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending'",
+        "ALTER TABLE cart DROP INDEX IF EXISTS unique_user_service",
+        "ALTER TABLE cart ADD UNIQUE KEY IF NOT EXISTS unique_user_service_status (user_id, sub_service_id, status)"
     ];
 
     foreach ($alter_queries as $query) {
@@ -297,4 +394,52 @@ function generateCategoryDropdown($categories) {
 function getSearchableCategories($conn) {
     $categories = getCategoryList($conn);
     return array_column($categories, 'category_name');
+}
+
+function generateRazorpayOrder($conn, $booking_id, $amount) {
+    // Create a Razorpay order
+    $api_key = 'rzp_test_pM7XeD3uvgF2Or';
+    $api_secret = 'pjPyycAbpchrCl4tgwUqc7V6';
+    
+    $url = 'https://api.razorpay.com/v1/orders';
+    $data = [
+        'amount' => $amount * 100, // Amount in paise
+        'currency' => 'INR',
+        'receipt' => 'rcpt_' . $booking_id,
+        'payment_capture' => 1
+    ];
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_USERPWD, $api_key . ':' . $api_secret);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    
+    $response = curl_exec($ch);
+    $err = curl_error($ch);
+    curl_close($ch);
+    
+    if ($err) {
+        return ['success' => false, 'error' => $err];
+    }
+    
+    return ['success' => true, 'data' => json_decode($response, true)];
+}
+
+function updatePaymentStatus($conn, $booking_id, $payment_id, $status) {
+    $query = "UPDATE payments SET 
+              transaction_id = ?, 
+              status = ?,
+              updated_at = CURRENT_TIMESTAMP 
+              WHERE booking_id = ?";
+              
+    $stmt = $conn->prepare($query);
+    if (!$stmt) {
+        return false;
+    }
+    
+    $stmt->bind_param("ssi", $payment_id, $status, $booking_id);
+    return $stmt->execute();
 }

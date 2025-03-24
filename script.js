@@ -438,3 +438,49 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+let selectedMethod = null;
+
+function toggleSection(sectionId) {
+    const sections = document.querySelectorAll('.payment-options');
+    const chevrons = document.querySelectorAll('.chevron');
+    
+    // Close all other sections first
+    sections.forEach(section => {
+        if (section.id !== sectionId && !section.classList.contains('collapsed')) {
+            section.classList.add('collapsed');
+            section.previousElementSibling.querySelector('.chevron').classList.remove('up');
+        }
+    });
+
+    // Toggle the clicked section
+    const section = document.getElementById(sectionId);
+    const chevron = section.previousElementSibling.querySelector('.chevron');
+    section.classList.toggle('collapsed');
+    chevron.classList.toggle('up');
+}
+
+function selectPayment(method, element) {
+    selectedMethod = method;
+    
+    // Remove selection from all options
+    document.querySelectorAll('.payment-option').forEach(option => {
+        option.classList.remove('selected');
+        option.querySelector('.choose-text').textContent = 'Choose';
+    });
+    
+    // Add selection to clicked option
+    element.classList.add('selected');
+    element.querySelector('.choose-text').textContent = 'Selected';
+    
+    // Enable continue button
+    document.querySelector('.continue-btn').removeAttribute('disabled');
+}
+
+function processPayment() {
+    if (!selectedMethod) {
+        alert('Please select a payment method');
+        return;
+    }
+    initializeRazorpay(selectedMethod);
+}

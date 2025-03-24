@@ -16,6 +16,18 @@ $stmt->execute();
 $result = $stmt->get_result();
 $user_data = $result->fetch_assoc();
 
+// Add null checks and default values for user data
+if (!$user_data) {
+    $user_data = [
+        'username' => '',
+        'email' => '',
+        'mobile' => '',
+        'address' => '',
+        'city' => '',
+        'state' => ''
+    ];
+}
+
 $error_message = "";
 $success_message = "";
 
@@ -120,57 +132,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
     }
 }
 
-// Handle profile update
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
-    $username = $_POST['username'];
-    $email = $_POST['email'];
-    $mobile = $_POST['mobile'];
-    $address = $_POST['address'];
-    $city = $_POST['city'];
-    $state = $_POST['state'];
-    $new_password = $_POST['new_password'];
-
-    // Check if email is already in use by another user
-    $email_check = $conn->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
-    $email_check->bind_param("si", $email, $user_id);
-    $email_check->execute();
-    $email_result = $email_check->get_result();
-
-    if ($email_result->num_rows > 0) {
-        $error_message = "Email is already in use by another account.";
-    } else {
-        if (!empty($new_password)) {
-            // Password update requested
-            $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
-            $sql = "UPDATE users SET username=?, email=?, mobile=?, address=?, city=?, state=?, password=? WHERE id=?";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("sssssssi", $username, $email, $mobile, $address, $city, $state, $hashed_password, $user_id);
-        } else {
-            // Update without password change
-            $sql = "UPDATE users SET username=?, email=?, mobile=?, address=?, city=?, state=? WHERE id=?";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ssssssi", $username, $email, $mobile, $address, $city, $state, $user_id);
-        }
-
-        if ($stmt->execute()) {
-            $success_message = "Profile updated successfully!";
-            // Update session data
-            $_SESSION['username'] = $username;
-            // Update the displayed data
-            $user_data = [
-                'username' => $username,
-                'email' => $email,
-                'mobile' => $mobile,
-                'address' => $address,
-                'city' => $city,
-                'state' => $state
-            ];
-        } else {
-            $error_message = "Error updating profile: " . $stmt->error;
-        }
-    }
-}
-
 // Kerala Districts array
 $kerala_districts = [
     'ALP' => 'Alappuzha',
@@ -188,6 +149,27 @@ $kerala_districts = [
     'TSR' => 'Thrissur',
     'WYD' => 'Wayanad'
 ];
+
+// Check verification status - Add proper null checks
+$stmt = $conn->prepare("
+    SELECT sp.verified_status, v.documents_uploaded, sp.id_type, sp.id_number 
+    FROM service_providers sp
+    LEFT JOIN verification_status v ON v.provider_id = sp.provider_id
+    WHERE sp.user_id = ?
+");
+$stmt->bind_param("i", $_SESSION['user_id']);
+$stmt->execute();
+$verification_data = $stmt->get_result()->fetch_assoc();
+
+// Initialize verification data if null
+if (!$verification_data) {
+    $verification_data = [
+        'verified_status' => 0,
+        'documents_uploaded' => 0,
+        'id_type' => '',
+        'id_number' => ''
+    ];
+}
 ?>
 
 <!DOCTYPE html>
@@ -498,7 +480,213 @@ $kerala_districts = [
                 font-size: 14px;
             }
         }
+
+        .verification-section {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-top: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            color: #099409;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .verification-status {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .status-badge.verified {
+            background-color: #e6ffe6;
+            color: #099409;
+            border: 1px solid #099409;
+        }
+
+        .status-badge.unverified {
+            background-color: #fff3e6;
+            color: #ff6b01;
+            border: 1px solid #ff6b01;
+        }
+
+        .verification-form .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .verification-form .form-group {
+            margin-bottom: 20px;
+        }
+
+        .verification-form label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .verification-form input[type="text"],
+        .verification-form select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .verification-form input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #e1e1e1;
+            border-radius: 8px;
+            background: #f8f8f8;
+            cursor: pointer;
+        }
+
+        .verification-form input[type="file"]:hover {
+            border-color: #099409;
+            background: #fff;
+        }
+
+        .verification-form input:disabled,
+        .verification-form select:disabled {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        .id-format-hint {
+            display: block;
+            color: #666;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .terms-group {
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-success {
+            background-color: #099409;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-success:hover {
+            background-color: #067606;
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .verification-form .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .button-group-container {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e1e1;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .right-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn i {
+            font-size: 16px;
+        }
+
+        .btn-delete {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background-color: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background-color: #099409;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #067606;
+            transform: translateY(-2px);
+        }
+
+        /* Responsive styles */
+        @media (max-width: 768px) {
+            .button-group {
+                flex-direction: column;
+            }
+
+            .right-buttons {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -530,35 +718,35 @@ $kerala_districts = [
                     <div class="form-group">
                         <label for="username">Username</label>
                         <input type="text" name="username" id="username" 
-                               value="<?php echo htmlspecialchars($user_data['username']); ?>">
+                               value="<?php echo htmlspecialchars($user_data['username'] ?? ''); ?>" required>
                         <div class="feedback"></div>
                     </div>
 
                     <div class="form-group">
                         <label for="email">Email</label>
                         
-                        <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($user_data['email']); ?>">
+                        <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
                         <div class="feedback"></div>
                     </div>
 
                     <div class="form-group">
                         <label for="mobile">Mobile</label>
                         <input type="text" name="mobile" id="mobile" 
-                               value="<?php echo htmlspecialchars($user_data['mobile']); ?>">
+                               value="<?php echo htmlspecialchars($user_data['mobile'] ?? ''); ?>" required>
                         <div class="feedback"></div>
                     </div>
 
                     <div class="form-group">
                         <label for="address">Address</label>
                         <input type="text" name="address" id="address" 
-                               value="<?php echo htmlspecialchars($user_data['address']); ?>">
+                               value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
                         <div class="feedback"></div>
                     </div>
 
                     <div class="form-group">
                         <label for="city">City</label>
                         <input type="text" name="city" id="city" 
-                               value="<?php echo htmlspecialchars($user_data['city']); ?>">
+                               value="<?php echo htmlspecialchars($user_data['city'] ?? ''); ?>">
                         <div class="feedback"></div>
                     </div>
 
@@ -568,8 +756,8 @@ $kerala_districts = [
                             <option value="">Select District</option>
                             <?php foreach($kerala_districts as $code => $name): ?>
                                 <option value="<?php echo $code; ?>" 
-                                    <?php echo ($user_data['state'] == $code) ? 'selected' : ''; ?>>
-                                    <?php echo $name; ?>
+                                    <?php echo ($user_data['state'] ?? '') == $code ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($name); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -586,12 +774,6 @@ $kerala_districts = [
                         <label for="confirm_password">Confirm New Password</label>
                         <input type="password" name="confirm_password" id="confirm_password">
                         <div class="feedback"></div>
-                    </div>
-
-                    <div class="button-group">
-                        <button type="button" class="btn btn-secondary" onclick="window.location.href='index.php'">Cancel</button>
-                        <button type="submit" name="update" class="btn btn-primary">Save Changes</button>
-                        <button type="button" class="btn btn-delete" onclick="confirmDelete()">Delete Account</button>
                     </div>
                 </div>
             </form>
@@ -614,6 +796,91 @@ $kerala_districts = [
                             <button type="submit" class="btn btn-delete">Delete Account</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- Add this after your existing profile form but before the closing </div> of main-content -->
+            <div class="verification-section">
+                <h2 class="section-title">Verification Details</h2>
+                
+                <div class="verification-status">
+                    <div class="status-badge <?php echo ($verification_data['verified_status'] ?? 0) ? 'verified' : 'unverified'; ?>">
+                        <?php echo ($verification_data['verified_status'] ?? 0) ? 'Verified' : 'Unverified'; ?>
+                    </div>
+                </div>
+
+                <form id="verificationForm" action="process_verification.php" method="POST" enctype="multipart/form-data" class="verification-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="id_type">ID Type*</label>
+                            <select name="id_type" id="id_type" <?php echo ($verification_data['verified_status'] ?? 0) ? 'disabled' : ''; ?>>
+                                <option value="">Select ID Type</option>
+                                <option value="aadhar" <?php echo ($verification_data['id_type'] ?? '') == 'aadhar' ? 'selected' : ''; ?>>Aadhar Card</option>
+                                <option value="pan" <?php echo ($verification_data['id_type'] ?? '') == 'pan' ? 'selected' : ''; ?>>PAN Card</option>
+                                <option value="voter" <?php echo ($verification_data['id_type'] ?? '') == 'voter' ? 'selected' : ''; ?>>Voter ID</option>
+                                <option value="driving" <?php echo ($verification_data['id_type'] ?? '') == 'driving' ? 'selected' : ''; ?>>Driving License</option>
+                            </select>
+                            <div class="feedback"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_number">ID Number*</label>
+                            <input type="text" id="id_number" name="id_number" 
+                                   value="<?php echo htmlspecialchars($verification_data['id_number'] ?? ''); ?>"
+                                   <?php echo ($verification_data['verified_status'] ?? 0) ? 'disabled' : ''; ?>>
+                            <small class="id-format-hint"></small>
+                            <div class="feedback"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>ID Proof (Front)*</label>
+                            <input type="file" name="id_proof_front" accept=".jpg,.jpeg,.png,.pdf"
+                                   <?php echo $verification_data['verified_status'] ? 'disabled' : ''; ?>>
+                            <div class="feedback"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>ID Proof (Back)*</label>
+                            <input type="file" name="id_proof_back" accept=".jpg,.jpeg,.png,.pdf"
+                                   <?php echo $verification_data['verified_status'] ? 'disabled' : ''; ?>>
+                            <div class="feedback"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Address Proof*</label>
+                            <input type="file" name="address_proof" accept=".jpg,.jpeg,.png,.pdf"
+                                   <?php echo $verification_data['verified_status'] ? 'disabled' : ''; ?>>
+                            <div class="feedback"></div>
+                        </div>
+                    </div>
+
+                    <?php if (!($verification_data['verified_status'] ?? 0)): ?>
+                        <div class="terms-group">
+                            <input type="checkbox" id="terms" name="terms" required>
+                            <label for="terms">I agree to the verification terms and conditions</label>
+                        </div>
+
+                        <div class="button-group">
+                            <button type="submit" name="submit_verification" class="btn btn-success">Submit Verification</button>
+                        </div>
+                    <?php endif; ?>
+                </form>
+            </div>
+
+            <!-- Add this after the verification form but before the closing main-content div -->
+            <div class="button-group-container">
+                <div class="button-group">
+                    <button type="button" class="btn btn-delete" onclick="showDeleteModal()">
+                        <i class="fas fa-trash-alt"></i> Delete Account
+                    </button>
+                    <div class="right-buttons">
+                        <button type="button" class="btn btn-secondary" onclick="window.location.href='index.php'">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" form="edit-profile-form" name="update" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -804,6 +1071,85 @@ $kerala_districts = [
                 closeDeleteModal();
             }
         }
+
+        const idPatterns = {
+            aadhar: {
+                pattern: /^\d{12}$/,
+                format: '12 digits (e.g., 123456789012)'
+            },
+            pan: {
+                pattern: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
+                format: '5 letters + 4 numbers + 1 letter (e.g., ABCDE1234F)'
+            },
+            voter: {
+                pattern: /^[A-Z]{3}\d{7}$/,
+                format: '3 letters + 7 numbers (e.g., ABC1234567)'
+            },
+            driving: {
+                pattern: /^[A-Z]{2}\d{13}$/,
+                format: '2 letters + 13 numbers (e.g., KL1234567890123)'
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const idTypeSelect = document.getElementById('id_type');
+            const idNumberInput = document.getElementById('id_number');
+            const idFormatHint = document.querySelector('.id-format-hint');
+            const verificationForm = document.getElementById('verificationForm');
+
+            if (idTypeSelect && idNumberInput) {
+                idTypeSelect.addEventListener('change', function() {
+                    const selectedType = this.value;
+                    const pattern = idPatterns[selectedType];
+                    
+                    if (pattern) {
+                        idFormatHint.textContent = pattern.format;
+                        idFormatHint.style.display = 'block';
+                        idNumberInput.placeholder = `Enter ${selectedType} number`;
+                    } else {
+                        idFormatHint.style.display = 'none';
+                        idNumberInput.placeholder = 'Enter ID number';
+                    }
+                });
+
+                idNumberInput.addEventListener('input', function() {
+                    const selectedType = idTypeSelect.value;
+                    const pattern = idPatterns[selectedType];
+                    
+                    if (pattern && !pattern.pattern.test(this.value)) {
+                        this.setCustomValidity('Invalid format');
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
+            }
+
+            if (verificationForm) {
+                verificationForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const formData = new FormData(this);
+                    
+                    fetch('process_verification.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Verification documents submitted successfully!');
+                            location.reload();
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while submitting the verification documents.');
+                    });
+                });
+            }
+        });
     </script>
 </body>
 </html>
