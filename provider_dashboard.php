@@ -140,6 +140,7 @@ if (!empty($verification_error)) {
     // Clear the error
     unset($_SESSION['verification_error']);
 }
+<<<<<<< HEAD
 
 // Get all bookings for the provider
 $stmt = $conn->prepare("
@@ -174,6 +175,8 @@ $stmt = $conn->prepare($counts_query);
 $stmt->bind_param("i", $provider_id);
 $stmt->execute();
 $counts = $stmt->get_result()->fetch_assoc();
+=======
+>>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
 ?>
 
 <!DOCTYPE html>
@@ -571,6 +574,75 @@ $counts = $stmt->get_result()->fetch_assoc();
             z-index: 1000;
         }
 
+<<<<<<< HEAD
+=======
+        .status-rejected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Verification banner styles */
+        .verification-banner {
+            background-color: #ff7f50;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .verification-banner i {
+            font-size: 24px;
+            margin-right: 15px;
+        }
+
+        .verification-banner.pending {
+            background-color: #ff7f50;
+        }
+
+        .verification-banner.approved {
+            background-color: #4CAF50;
+        }
+
+        .verification-banner.rejected {
+            background-color: #f44336;
+        }
+
+        .verification-details {
+            background-color: #fff9e6;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .verification-details h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .verification-details p {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        /* Popup styles */
+        .verification-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+>>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
         .popup-content {
             background: white;
             padding: 2rem;
@@ -795,6 +867,7 @@ $counts = $stmt->get_result()->fetch_assoc();
         
         .verification-pending-message {
             overflow: hidden;
+<<<<<<< HEAD
         }
 
         .dashboard-stats {
@@ -870,6 +943,8 @@ $counts = $stmt->get_result()->fetch_assoc();
             .dashboard-stats {
                 grid-template-columns: 1fr;
             }
+=======
+>>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
         }
     </style>
 </head>
@@ -940,6 +1015,7 @@ $counts = $stmt->get_result()->fetch_assoc();
             <div class="verification-pending-container">
                 <div class="verification-pending-header">
                     <i class="fas fa-user-check"></i> Verification Pending
+<<<<<<< HEAD
                 </div>
                 <div class="verification-pending-content">
                     <div class="verification-pending-icon">
@@ -957,6 +1033,53 @@ $counts = $stmt->get_result()->fetch_assoc();
                             This usually takes 1-2 business days. We'll notify you once your account is approved.
                         </p>
                     </div>
+=======
+                </div>
+                <div class="verification-pending-content">
+                    <div class="verification-pending-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="verification-pending-message">
+                        <div class="verification-pending-title">Your documents are under review</div>
+                        <p class="verification-pending-text">
+                            <strong>Thank you for submitting your verification documents.</strong> Our team is currently reviewing your information to ensure everything meets our platform standards.
+                        </p>
+                        <p class="verification-pending-text">
+                            Your account verification is pending admin approval. You'll have limited access until your documents are verified.
+                        </p>
+                        <p class="verification-pending-text">
+                            This usually takes 1-2 business days. We'll notify you once your account is approved.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Notification for approval -->
+            <?php if (isset($_SESSION['verification_status']) && $_SESSION['verification_status'] === 'success'): ?>
+                <div class="notification">
+                    <?php echo $_SESSION['verification_message']; ?>
+                </div>
+                <?php unset($_SESSION['verification_status'], $_SESSION['verification_message']); ?>
+            <?php endif; ?>
+
+            <div class="stats-container">
+                <div class="stat-card">
+                    <h3>Today's Bookings</h3>
+                    <div class="value"><?php echo count($today_bookings); ?></div>
+                </div>
+                <div class="stat-card">
+                    <h3>Average Rating</h3>
+                    <div class="value"><?php echo number_format($avg_rating, 1); ?> ⭐</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Reviews</h3>
+                    <div class="value"><?php echo $total_reviews; ?></div>
+                </div>
+                <div class="stat-card">
+                    <h3>Pending Requests</h3>
+                    <div class="value"><?php echo $pending_count; ?></div>
+>>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
                 </div>
             </div>
             <?php endif; ?>
@@ -1023,7 +1146,20 @@ $counts = $stmt->get_result()->fetch_assoc();
             </div>
             <?php endif; ?>
 
+            <?php if (!$is_verified): ?>
+            <div class="verification-banner" style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #ffc107;">
+                <h3 style="color: #856404; margin-top: 0;"><i class="fas fa-exclamation-triangle"></i> Verification Pending</h3>
+                <?php if ($documents_submitted): ?>
+                <p style="color: #856404; margin-bottom: 0;">Your documents are under review. We'll notify you once the verification is complete.</p>
+                <?php else: ?>
+                <p style="color: #856404; margin-bottom: 10px;">Please complete your verification to access all features.</p>
+                <button id="showVerificationBtn" style="background-color: #ffc107; border: none; color: #856404; padding: 8px 15px; border-radius: 4px; cursor: pointer;">Complete Verification</button>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
+
             <div class="bookings-container">
+<<<<<<< HEAD
                 <h2><i class="fas fa-calendar-check"></i> All Bookings</h2>
                 
                 <?php if (empty($bookings)): ?>
@@ -1103,6 +1239,46 @@ $counts = $stmt->get_result()->fetch_assoc();
                         </table>
                     </div>
                 <?php endif; ?>
+=======
+                <h2>Today's Bookings</h2>
+                <table class="booking-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Customer</th>
+                            <th>Service</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (count($today_bookings) > 0): ?>
+                            <?php foreach ($today_bookings as $booking): ?>
+                                <tr>
+                                    <td><?php echo date('H:i', strtotime($booking['booking_time'])); ?></td>
+                                    <td><?php echo htmlspecialchars($booking['username']); ?></td>
+                                    <td><?php echo htmlspecialchars($booking['service_name']); ?></td>
+                                    <td>
+                                        <span class="status-badge status-<?php echo $booking['status']; ?>">
+                                            <?php echo ucfirst($booking['status']); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <?php if ($booking['status'] === 'pending'): ?>
+                                            <button onclick="updateBooking(<?php echo $booking['booking_id']; ?>, 'accepted')" class="accept-btn">Accept</button>
+                                            <button onclick="updateBooking(<?php echo $booking['booking_id']; ?>, 'rejected')" class="reject-btn">Reject</button>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="5" style="text-align: center;">No bookings for today</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+>>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
             </div>
         </div>
     </div>
@@ -1209,10 +1385,13 @@ $counts = $stmt->get_result()->fetch_assoc();
             }
         }
 
+<<<<<<< HEAD
         function viewBookingDetails(bookingId) {
             window.location.href = 'booking_details.php?id=' + bookingId;
         }
 
+=======
+>>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
         document.addEventListener('DOMContentLoaded', function() {
             const verificationPopup = document.getElementById('verificationPopup');
             const showVerificationBtn = document.getElementById('showVerificationBtn');
