@@ -9,6 +9,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 // Database connection
 require_once 'dbconnect.php';
 
+// Include PHPMailer classes
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 // Get counts for dashboard stats
 $userCount = $conn->query("SELECT COUNT(*) as count FROM users WHERE role != 'admin'")->fetch_assoc()['count'];
 $providerCount = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'service_provider'")->fetch_assoc()['count'];
@@ -25,10 +30,25 @@ $stmt = $conn->prepare("
 $stmt->execute();
 $pending_verifications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
+// Email configuration settings
+// These should be placed at the top of your file after database connection
+// In a production environment, consider using environment variables instead
+$EMAIL_HOST = 'smtp.gmail.com';
+$EMAIL_PORT = 587;
+$EMAIL_USERNAME = 'aparnaprasad363@gmail.com'; 
+$EMAIL_PASSWORD = 'wbnh wldc yeqo sqzi';  // Consider using app password for Gmail
+$EMAIL_FROM = 'aparnaprasad363@gmail.com';
+$EMAIL_FROM_NAME = 'ServiceHive';
+
 // Functions for database operations
 function getServiceProviders($db) {
-    $query = "SELECT u.id, u.username, u.email, u.status, sp.verified_status, sp.rating, sp.total_reviews,
-              sp.business_name, IFNULL(v.documents_uploaded, 'pending') as verification_status
+    $query = "SELECT u.id, u.username, u.email, u.status, 
+              sp.verified_status, sp.rating, sp.total_reviews, sp.business_name, 
+              CASE
+                WHEN u.status = 'approved' THEN 'completed'
+                WHEN v.documents_uploaded IS NOT NULL THEN v.documents_uploaded
+                ELSE 'pending'
+              END as verification_status
               FROM users u 
               LEFT JOIN service_providers sp ON u.id = sp.user_id 
               LEFT JOIN verification_status v ON u.id = v.provider_id
@@ -59,38 +79,197 @@ function getBookings($db) {
     return $db->query($query);
 }
 
+// Update the getServices function to use the correct table structure
+function getServices($db) {
+    $query = "SELECT s.service_id, s.service_name, s.description, c.category_name
+              FROM tbl_services s
+              LEFT JOIN tbl_categories c ON s.category_id = c.category_id
+              ORDER BY c.category_name, s.service_name";
+    return $db->query($query);
+}
+
+// Update the generateReport function to include services
+function generateReport($db, $type, $format = 'csv') {
+    switch ($type) {
+        case 'users':
+            $data = getUsers($db);
+            $headers = ['ID', 'Username', 'Email', 'Role', 'Status', 'Active', 'Mobile', 'City', 'State'];
+            $filename = 'users_report_' . date('Y-m-d') . '.' . $format;
+            break;
+        case 'providers':
+            $data = getServiceProviders($db);
+            $headers = ['ID', 'Username', 'Email', 'Status', 'Verification', 'Rating', 'Reviews', 'Business Name'];
+            $filename = 'providers_report_' . date('Y-m-d') . '.' . $format;
+            break;
+        case 'bookings':
+            $data = getBookings($db);
+            $headers = ['ID', 'Client', 'Provider', 'Service', 'Date', 'Time', 'Status', 'Payment Status', 'Price'];
+            $filename = 'bookings_report_' . date('Y-m-d') . '.' . $format;
+            break;
+        case 'services':
+            $data = getServices($db);
+            $headers = ['ID', 'Service Name', 'Category', 'Description'];
+            $filename = 'services_report_' . date('Y-m-d') . '.' . $format;
+            break;
+        default:
+            return false;
+    }
+    
+    if ($format === 'csv') {
+        return generateCSVReport($data, $headers, $filename);
+    } elseif ($format === 'pdf') {
+        // PDF generation would be added here
+        return false;
+    }
+    
+    return false;
+}
+
+function generateCSVReport($data, $headers, $filename) {
+    if (!$data) return false;
+    
+    $output = fopen('php://temp', 'w');
+    
+    // Add headers
+    fputcsv($output, $headers);
+    
+    // Add data rows
+    while ($row = $data->fetch_assoc()) {
+        fputcsv($output, $row);
+    }
+    
+    // Reset pointer
+    rewind($output);
+    
+    // Get content
+    $content = stream_get_contents($output);
+    fclose($output);
+    
+    return [
+        'filename' => $filename,
+        'content' => $content,
+        'type' => 'text/csv'
+    ];
+}
+
+// Handle report downloads
+if (isset($_GET['report'])) {
+    $reportType = $_GET['report'];
+    $format = isset($_GET['format']) ? $_GET['format'] : 'csv';
+    
+    $report = generateReport($conn, $reportType, $format);
+    
+    if ($report) {
+        header('Content-Type: ' . $report['type']);
+        header('Content-Disposition: attachment; filename="' . $report['filename'] . '"');
+        echo $report['content'];
+        exit;
+    } else {
+        $_SESSION['error'] = "Failed to generate report";
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    }
+}
+
+// Create a helper function for sending emails
+function sendServiceHiveEmail($recipientEmail, $recipientName, $subject, $message) {
+    global $conn, $EMAIL_HOST, $EMAIL_PORT, $EMAIL_USERNAME, $EMAIL_PASSWORD, $EMAIL_FROM, $EMAIL_FROM_NAME;
+    
+    // Use PHPMailer
+    $mail = new PHPMailer(true);
+
+    try {
+        $mail->isSMTP();
+        $mail->Host       = $EMAIL_HOST;
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $EMAIL_USERNAME;
+        $mail->Password   = $EMAIL_PASSWORD;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = $EMAIL_PORT;
+
+        $mail->setFrom($EMAIL_FROM, $EMAIL_FROM_NAME);
+        $mail->addAddress($recipientEmail, $recipientName);
+        $mail->Subject = $subject;
+        $mail->Body    = $message;
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Email sending failed: " . $mail->ErrorInfo);
+        
+        // Store the email in a database table for later sending
+        $emailMessage = $conn->prepare("INSERT INTO email_queue (recipient, subject, message, created_at) 
+                                       VALUES (?, ?, ?, NOW())");
+        $emailMessage->bind_param("sss", $recipientEmail, $subject, $message);
+        $emailMessage->execute();
+        return false;
+    }
+}
+
 function approveServiceProvider($db, $id) {
     $db->begin_transaction();
     try {
-        // Update user status
+        // Get provider email and username
+        $query0 = "SELECT email, username FROM users WHERE id = ? AND role = 'service_provider'";
+        $stmt0 = $db->prepare($query0);
+        $stmt0->bind_param("i", $id);
+        $stmt0->execute();
+        $result = $stmt0->get_result();
+        $user = $result->fetch_assoc();
+        
+        // Update user status in the users table
         $query1 = "UPDATE users SET status = 'approved' WHERE id = ? AND role = 'service_provider'";
         $stmt1 = $db->prepare($query1);
         $stmt1->bind_param("i", $id);
-        $stmt1->execute();
-
-        // Update service_provider verified_status
+        $result1 = $stmt1->execute();
+        
+        // Update service_provider verified_status and status
         $query2 = "UPDATE service_providers SET verified_status = TRUE, status = 'approved' WHERE user_id = ?";
         $stmt2 = $db->prepare($query2);
         $stmt2->bind_param("i", $id);
-        $stmt2->execute();
+        $result2 = $stmt2->execute();
         
-        // Update verification status if it exists
+        // Update verification_status
         $query3 = "UPDATE verification_status SET documents_uploaded = 'completed' WHERE provider_id = ?";
         $stmt3 = $db->prepare($query3);
         $stmt3->bind_param("i", $id);
-        $stmt3->execute();
-
+        $result3 = $stmt3->execute();
+        
         // Create notification
         $query4 = "INSERT INTO notifications (user_id, title, message, type) 
                   VALUES (?, 'Account Approved', 'Your service provider account has been approved. You can now start offering services.', 'system')";
         $stmt4 = $db->prepare($query4);
         $stmt4->bind_param("i", $id);
         $stmt4->execute();
-
+        
+        // Try to send a simple mail notification
+        if (!empty($user['email'])) {
+            $to = $user['email'];
+            $subject = "Your ServiceHive Account Has Been Approved";
+            $message = "Dear " . htmlspecialchars($user['username']) . ",\n\n";
+            $message .= "Congratulations! Your ServiceHive account has been approved by our administration team.\n\n";
+            $message .= "You can now log in to your account and start offering your services to customers.\n\n";
+            $message .= "Thank you for joining ServiceHive!\n\n";
+            $message .= "Best regards,\nThe ServiceHive Team";
+            
+            $headers = "From: noreply@servicehive.com\r\n";
+            $headers .= "Reply-To: support@servicehive.com\r\n";
+            
+            // We're just attempting to send email, but not making it critical
+            @mail($to, $subject, $message, $headers);
+        }
+        
         $db->commit();
+        
+        // Log the approval for debugging
+        error_log("Service provider ID $id approved. Users update: " . ($result1 ? "success" : "failed") . 
+                 ", service_providers update: " . ($result2 ? "success" : "failed") . 
+                 ", verification_status update: " . ($result3 ? "success" : "failed"));
+        
         return true;
     } catch (Exception $e) {
         $db->rollback();
+        error_log("Error in approveServiceProvider: " . $e->getMessage());
         return false;
     }
 }
@@ -98,23 +277,31 @@ function approveServiceProvider($db, $id) {
 function rejectServiceProvider($db, $id) {
     $db->begin_transaction();
     try {
-        // Update user status
+        // Get provider email and username
+        $query0 = "SELECT email, username FROM users WHERE id = ? AND role = 'service_provider'";
+        $stmt0 = $db->prepare($query0);
+        $stmt0->bind_param("i", $id);
+        $stmt0->execute();
+        $result = $stmt0->get_result();
+        $user = $result->fetch_assoc();
+        
+        // Update user status in the users table
         $query1 = "UPDATE users SET status = 'rejected' WHERE id = ? AND role = 'service_provider'";
         $stmt1 = $db->prepare($query1);
         $stmt1->bind_param("i", $id);
-        $stmt1->execute();
-
-        // Update service_provider verified_status
+        $result1 = $stmt1->execute();
+        
+        // Update service_provider verified_status and status
         $query2 = "UPDATE service_providers SET verified_status = FALSE, status = 'rejected' WHERE user_id = ?";
         $stmt2 = $db->prepare($query2);
         $stmt2->bind_param("i", $id);
-        $stmt2->execute();
+        $result2 = $stmt2->execute();
         
         // Update verification status if it exists
         $query3 = "UPDATE verification_status SET documents_uploaded = 'rejected' WHERE provider_id = ?";
         $stmt3 = $db->prepare($query3);
         $stmt3->bind_param("i", $id);
-        $stmt3->execute();
+        $result3 = $stmt3->execute();
 
         // Create notification
         $query4 = "INSERT INTO notifications (user_id, title, message, type) 
@@ -123,10 +310,34 @@ function rejectServiceProvider($db, $id) {
         $stmt4->bind_param("i", $id);
         $stmt4->execute();
 
+        // Try to send a simple mail notification
+        if (!empty($user['email'])) {
+            $to = $user['email'];
+            $subject = "Your ServiceHive Application Status";
+            $message = "Dear " . htmlspecialchars($user['username']) . ",\n\n";
+            $message .= "We regret to inform you that your ServiceHive service provider application has been rejected.\n\n";
+            $message .= "If you believe this is an error or would like to understand the reason, please contact our support team at support@servicehive.com.\n\n";
+            $message .= "You may reapply after addressing any issues with your application.\n\n";
+            $message .= "Best regards,\nThe ServiceHive Team";
+            
+            $headers = "From: noreply@servicehive.com\r\n";
+            $headers .= "Reply-To: support@servicehive.com\r\n";
+            
+            // We're just attempting to send email, but not making it critical
+            @mail($to, $subject, $message, $headers);
+        }
+
         $db->commit();
+        
+        // Log the rejection for debugging
+        error_log("Service provider ID $id rejected. Users update: " . ($result1 ? "success" : "failed") . 
+                 ", service_providers update: " . ($result2 ? "success" : "failed") . 
+                 ", verification_status update: " . ($result3 ? "success" : "failed"));
+        
         return true;
     } catch (Exception $e) {
         $db->rollback();
+        error_log("Error in rejectServiceProvider: " . $e->getMessage());
         return false;
     }
 }
@@ -138,8 +349,6 @@ function deleteUser($db, $id) {
     return $stmt->execute();
 }
 
-
-
 // Handle POST requests
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['approve_provider'])) {
@@ -148,12 +357,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } else {
             $_SESSION['error'] = "Failed to approve service provider";
         }
+        // Force a redirect to refresh the page and show the updated status
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
     } elseif (isset($_POST['reject_provider'])) {
         if (rejectServiceProvider($conn, $_POST['provider_id'])) {
             $_SESSION['message'] = "Service provider rejected successfully";
         } else {
             $_SESSION['error'] = "Failed to reject service provider";
         }
+        // Force a redirect to refresh the page and show the updated status
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
     } elseif (isset($_POST['delete_user'])) {
         if (deleteUser($conn, $_POST['user_id'])) {
             $_SESSION['message'] = "User deleted successfully";
@@ -791,6 +1006,28 @@ $bookings = getBookings($conn);
             border-radius: 4px;
             margin-bottom: 20px;
         }
+
+        .btn-report {
+            background-color: #007bff;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            float: right;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+        
+        .btn-report:hover {
+            background-color: #0056b3;
+            color: white;
+        }
+        
+        .section h2 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -908,7 +1145,12 @@ $bookings = getBookings($conn);
 
             <!-- Service Providers Section -->
             <div class="section" id="providers">
-                <h2><i class="fas fa-user-tie"></i> Service Providers</h2>
+                <h2>
+                    <i class="fas fa-user-tie"></i> Service Providers
+                    <a href="?report=providers" class="btn btn-report">
+                        <i class="fas fa-download"></i> Download Report
+                    </a>
+                </h2>
                 <table>
                     <thead>
                         <tr>
@@ -923,39 +1165,28 @@ $bookings = getBookings($conn);
                     <tbody>
                         <?php if ($serviceProviders && $serviceProviders->num_rows > 0): ?>
                             <?php while ($provider = $serviceProviders->fetch_assoc()): ?>
-                                <tr>
+                                <tr id="provider-row-<?php echo $provider['id']; ?>">
                                     <td><?php echo htmlspecialchars($provider['id']); ?></td>
                                     <td><?php echo htmlspecialchars($provider['username']); ?></td>
                                     <td><?php echo htmlspecialchars($provider['email']); ?></td>
-                                    <td>
+                                    <td class="provider-status">
                                         <span class="status-badge status-<?php echo strtolower($provider['status'] ?? 'pending'); ?>">
                                             <?php echo ucfirst($provider['status'] ?? 'pending'); ?>
                                         </span>
                                     </td>
-                                    <td>
-                                        <?php
-                                        // Check if verification documents are uploaded
-                                        $v_stmt = $conn->prepare("SELECT documents_uploaded FROM verification_status WHERE provider_id = ?");
-                                        $v_stmt->bind_param("i", $provider['id']);
-                                        $v_stmt->execute();
-                                        $v_result = $v_stmt->get_result();
-                                        $v_status = $v_result->num_rows > 0 ? $v_result->fetch_assoc()['documents_uploaded'] : 'pending';
-                                        ?>
-                                        <span class="status-badge status-<?php echo $v_status === 'completed' ? 'approved' : 'pending'; ?>">
-                                            <?php echo ucfirst($v_status); ?>
+                                    <td class="verification-status">
+                                        <span class="status-badge status-<?php echo $provider['verification_status'] === 'completed' || $provider['status'] === 'approved' ? 'approved' : 'pending'; ?>">
+                                            <?php echo $provider['verification_status'] === 'completed' || $provider['status'] === 'approved' ? 'Completed' : 'Pending'; ?>
                                         </span>
-                                        <?php if ($v_status === 'completed'): ?>
+                                        <?php if ($provider['verification_status'] === 'completed' || $provider['status'] === 'approved'): ?>
                                             <button class="btn btn-view" onclick="viewVerificationDetails(<?php echo $provider['id']; ?>)">
                                                 <i class="fas fa-eye"></i> View
                                             </button>
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <form method="POST" style="display:inline;">
-                                            <input type="hidden" name="provider_id" value="<?php echo $provider['id']; ?>">
-                                            <button type="submit" name="approve_provider" class="btn btn-approve">Approve</button>
-                                            <button type="submit" name="reject_provider" class="btn btn-reject">Reject</button>
-                                        </form>
+                                        <button type="button" class="btn btn-approve" onclick="updateProviderStatus(<?php echo $provider['id']; ?>, 'approved')">Approve</button>
+                                        <button type="button" class="btn btn-reject" onclick="updateProviderStatus(<?php echo $provider['id']; ?>, 'rejected')">Reject</button>
                                     </td>
                                 </tr>
                             <?php endwhile; ?>
@@ -968,7 +1199,12 @@ $bookings = getBookings($conn);
 
             <!-- Bookings Section -->
             <div class="section" id="bookings">
-                <h2><i class="fas fa-calendar-check"></i> Bookings</h2>
+                <h2>
+                    <i class="fas fa-calendar-check"></i> Bookings
+                    <a href="?report=bookings" class="btn btn-report">
+                        <i class="fas fa-download"></i> Download Report
+                    </a>
+                </h2>
                 <table>
                     <thead>
                         <tr>
@@ -1003,7 +1239,12 @@ $bookings = getBookings($conn);
 
             <!-- Users Section -->
             <div class="section" id="users">
-                <h2><i class="fas fa-users"></i> Users</h2>
+                <h2>
+                    <i class="fas fa-users"></i> Users
+                    <a href="?report=users" class="btn btn-report">
+                        <i class="fas fa-download"></i> Download Report
+                    </a>
+                </h2>
                 <table>
                     <thead>
                         <tr>
@@ -1133,7 +1374,7 @@ $bookings = getBookings($conn);
             document.getElementById('verificationModal').style.display = 'block';
             document.getElementById('verificationDetails').innerHTML = '<p class="text-center">Loading verification details...</p>';
             
-            fetch(`get_verification_details.php?provider_id=${providerId}`)
+            fetch(`get_verification_documents.php?provider_id=${providerId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1180,10 +1421,6 @@ $bookings = getBookings($conn);
                                 </div>
                             `;
                         }
-                        
-                        // Set provider ID for approve/reject buttons
-                        document.getElementById('approveBtn').setAttribute('data-provider-id', details.provider_id);
-                        document.getElementById('rejectBtn').setAttribute('data-provider-id', details.provider_id);
                     } else {
                         document.getElementById('verificationDetails').innerHTML = `
                             <div class="alert alert-danger">
@@ -1363,6 +1600,52 @@ $bookings = getBookings($conn);
                 closeVerificationModal();
             }
         }
+
+        // Updated function to correctly target elements in your table
+        function updateProviderStatus(providerId, status) {
+            console.log(`Updating provider ${providerId} status to ${status}`);
+            
+            // Create form data
+            const formData = new FormData();
+            formData.append('provider_id', providerId);
+            formData.append(status === 'approved' ? 'approve_provider' : 'reject_provider', 'true');
+            
+            fetch('update_provider_status.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                if (data.success) {
+                    // Force page reload to show updated status
+                    // This is the simplest solution if the dynamic updates aren't working
+                    location.reload();
+                    
+                    // Show success message after reload is triggered
+                    alert(data.message);
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating provider status:', error);
+                alert('Error updating provider status: ' + error.message);
+            });
+        }
+
+        // Helper to find elements by text content
+        // Add this utility function
+        Document.prototype.querySelector = Document.prototype.querySelector || function() {
+            return this.querySelector.apply(this, arguments);
+        };
+        
+        Element.prototype.contains = function(text) {
+            return this.textContent.includes(text);
+        };
     </script>
 </body>
 </html>

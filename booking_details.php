@@ -45,6 +45,26 @@ if ($result->num_rows === 0) {
 }
 
 $booking = $result->fetch_assoc();
+
+// Function to check if user has already reviewed this booking
+function hasReview($conn, $booking_id) {
+    $query = "SELECT id FROM reviews WHERE booking_id = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $booking_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->num_rows > 0;
+}
+
+// Function to get review details
+function getReview($conn, $booking_id) {
+    $query = "SELECT * FROM reviews WHERE booking_id = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $booking_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_assoc();
+}
 ?>
 
 <!DOCTYPE html>
@@ -264,6 +284,83 @@ $booking = $result->fetch_assoc();
             color: #ec8908;
             text-decoration: underline;
         }
+
+        .review-form {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .rating-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .rating-label {
+            margin-right: 15px;
+            font-weight: 500;
+        }
+
+        .star-rating {
+            display: flex;
+            flex-direction: row-reverse;
+            justify-content: flex-end;
+        }
+
+        .star-rating input {
+            display: none;
+        }
+
+        .star-rating label {
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23ddd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 80%;
+        }
+
+        .star-rating label:hover,
+        .star-rating label:hover ~ label,
+        .star-rating input:checked ~ label {
+            background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="%23ffc107" stroke="%23ffc107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>');
+        }
+
+        .user-review {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            margin-top: 15px;
+        }
+
+        .review-rating {
+            margin-bottom: 15px;
+        }
+
+        .review-rating .fas.fa-star {
+            color: #ddd;
+            margin-right: 3px;
+        }
+
+        .review-rating .fas.fa-star.filled {
+            color: #ffc107;
+        }
+
+        .review-text {
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .review-date {
+            color: #777;
+            font-size: 12px;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -334,8 +431,14 @@ $booking = $result->fetch_assoc();
                 <div class="info-grid">
                     <div class="info-item">
                         <span class="info-label">Booking Status</span>
-                        <span class="status-badge status-<?php echo strtolower($booking['status']); ?>">
-                            <?php echo ucfirst($booking['status']); ?>
+                        <span class="status-badge status-<?php echo strtolower($booking['payment_status'] == 'paid' ? 'accepted' : $booking['status']); ?>">
+                            <?php 
+                            if ($booking['payment_status'] == 'paid' && $booking['status'] == 'pending') {
+                                echo 'Accepted';
+                            } else {
+                                echo ucfirst($booking['status']);
+                            }
+                            ?>
                         </span>
                     </div>
                     <div class="info-item">
@@ -394,6 +497,74 @@ $booking = $result->fetch_assoc();
                 <?php endif; ?>
             </div>
             <?php endif; ?>
+
+            <?php if ($booking['status'] === 'accepted' && $booking['payment_status'] === 'paid'): ?>
+            <div class="section">
+                <h2 class="section-title">
+                    <i class="fas fa-check-circle"></i> Service Status
+                </h2>
+                <p style="margin-bottom: 15px;">The service provider will complete your service as scheduled.</p>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Scheduled Date</span>
+                        <span class="info-value"><?php echo date('d M Y', strtotime($booking['booking_date'])); ?></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Scheduled Time</span>
+                        <span class="info-value"><?php echo date('h:i A', strtotime($booking['time_slot'])); ?></span>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($booking['status'] === 'completed' && !hasReview($conn, $booking['booking_id'])): ?>
+            <div class="section">
+                <h2 class="section-title">
+                    <i class="fas fa-star"></i> Rate Your Experience
+                </h2>
+                <div class="review-form">
+                    <form id="reviewForm">
+                        <input type="hidden" name="booking_id" value="<?php echo $booking['booking_id']; ?>">
+                        <input type="hidden" name="provider_id" value="<?php echo $booking['provider_id']; ?>">
+                        <input type="hidden" name="service_id" value="<?php echo $booking['service_id']; ?>">
+                        
+                        <div class="rating-container">
+                            <div class="rating-label">Your Rating:</div>
+                            <div class="star-rating">
+                                <input type="radio" id="star5" name="rating" value="5" required><label for="star5"></label>
+                                <input type="radio" id="star4" name="rating" value="4"><label for="star4"></label>
+                                <input type="radio" id="star3" name="rating" value="3"><label for="star3"></label>
+                                <input type="radio" id="star2" name="rating" value="2"><label for="star2"></label>
+                                <input type="radio" id="star1" name="rating" value="1"><label for="star1"></label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="review_text">Your Review:</label>
+                            <textarea id="review_text" name="review_text" rows="4" placeholder="Share your experience with this service..." required style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary" style="margin-top: 15px;">Submit Review</button>
+                    </form>
+                </div>
+            </div>
+            <?php elseif (hasReview($conn, $booking['booking_id'])): ?>
+            <div class="section">
+                <h2 class="section-title">
+                    <i class="fas fa-star"></i> Your Review
+                </h2>
+                <div class="user-review">
+                    <?php $review = getReview($conn, $booking['booking_id']); ?>
+                    <div class="review-rating">
+                        <?php for($i = 1; $i <= 5; $i++): ?>
+                            <i class="fas fa-star <?php echo ($i <= $review['rating']) ? 'filled' : ''; ?>"></i>
+                        <?php endfor; ?>
+                    </div>
+                    <div class="review-text"><?php echo htmlspecialchars($review['review_text']); ?></div>
+                    <div class="review-date">Submitted on <?php echo date('d M Y', strtotime($review['created_at'])); ?></div>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -424,6 +595,36 @@ $booking = $result->fetch_assoc();
                 });
             }
         }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const reviewForm = document.getElementById('reviewForm');
+            
+            if (reviewForm) {
+                reviewForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const formData = new FormData(reviewForm);
+                    
+                    fetch('submit_review.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Thank you for your review!');
+                            location.reload();
+                        } else {
+                            alert('Failed to submit review: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while submitting your review');
+                    });
+                });
+            }
+        });
     </script>
 </body>
 </html> 

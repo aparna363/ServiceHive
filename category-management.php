@@ -385,6 +385,27 @@ $subServices = $conn->query($subServicesQuery);
     border: 1px solid #f5c6cb;
     border-radius: 4px;
 }
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.btn-report {
+    background-color: #007bff;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.btn-report:hover {
+    background-color: #0056b3;
+    color: white;
+}
     </style>
 </head>
 <body>
@@ -425,6 +446,14 @@ $subServices = $conn->query($subServicesQuery);
                     <?php echo htmlspecialchars($error_message); ?>
                 </div>
             <?php endif; ?>
+            
+            <!-- Add this near the top of the content section in category-management.php -->
+            <div class="section-header">
+                <h2>Service Management</h2>
+                <a href="admin.php?report=services" class="btn btn-report">
+                    <i class="fas fa-download"></i> Download Services Report
+                </a>
+            </div>
             
             <!-- Categories Section -->
             <div id="categoriesTable" class="section table-section <?php echo (isset($_GET['active']) && $_GET['active'] === 'categories') ? 'active' : ''; ?>">

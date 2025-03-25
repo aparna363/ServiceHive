@@ -203,84 +203,9 @@ error_log("Cart items: " . count($_SESSION['cart']));
 
 // Handle cart actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    $action = $_POST['action'];
-    
-    if ($action === 'add_to_cart') {
-        $sub_service_id = $_POST['sub_service_id'];
-        $quantity = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
-        $measurement = isset($_POST['measurement']) ? (float)$_POST['measurement'] : 0;
-        $final_price = $_POST['final_price'];
-        
-        // Get service details from database
-        $stmt = $conn->prepare("
-            SELECT ss.sub_service_name, ss.price, s.pricing_type, s.service_name
-            FROM tbl_sub_services ss
-            JOIN tbl_services s ON ss.service_id = s.service_id
-            WHERE ss.sub_service_id = ?
-        ");
-        $stmt->bind_param("i", $sub_service_id);
-        $stmt->execute();
-        $result = $stmt->get_result()->fetch_assoc();
-        
-        if ($result) {
-            // Add to guest cart
-            $_SESSION['guest_cart'][$sub_service_id] = [
-                'sub_service_id' => $sub_service_id,
-                'name' => $result['sub_service_name'],
-                'service_name' => $result['service_name'],
-                'price' => $result['price'],
-                'pricing_type' => $result['pricing_type'],
-                'quantity' => $quantity,
-                'measurement' => $measurement,
-                'final_price' => $final_price
-            ];
-            
-            // Update cart count
-            $_SESSION['guest_cart_count'] = count($_SESSION['guest_cart']);
-            
-            echo json_encode(['success' => true, 'cart_count' => $_SESSION['guest_cart_count']]);
-            exit;
-        }
-    } 
-    elseif ($action === 'get_cart') {
-        // Calculate totals
-        $subtotal = 0;
-        foreach ($_SESSION['guest_cart'] as $item) {
-            $subtotal += $item['final_price'];
-        }
-        
-        $convenience_fee = $subtotal * 0.05; // 5% fee
-        $grand_total = $subtotal + $convenience_fee;
-        
-        echo json_encode([
-            'success' => true,
-            'cart_items' => $_SESSION['guest_cart'],
-            'cart_count' => $_SESSION['guest_cart_count'],
-            'subtotal' => $subtotal,
-            'convenience_fee' => $convenience_fee,
-            'grand_total' => $grand_total
-        ]);
-        exit;
-    }
-    elseif ($action === 'remove_from_cart') {
-        $sub_service_id = $_POST['sub_service_id'];
-        
-        if (isset($_SESSION['guest_cart'][$sub_service_id])) {
-            unset($_SESSION['guest_cart'][$sub_service_id]);
-            $_SESSION['guest_cart_count'] = count($_SESSION['guest_cart']);
-            
-            echo json_encode(['success' => true, 'cart_count' => $_SESSION['guest_cart_count']]);
-            exit;
-        }
-    }
-}
-
-// Update the place_booking handler with proper checks
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $action = $_POST['action'];
     
-<<<<<<< HEAD
     switch($action) {
         case 'add_to_cart':
             if (!isset($_SESSION['user_id'])) {
@@ -566,14 +491,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     
-=======
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
     // Check if action exists in POST data
     $action = $_POST['action'] ?? '';
     
     switch($action) {
         case 'add_to_cart':
-<<<<<<< HEAD
             if (!isset($_SESSION['user_id'])) {
                 echo json_encode(['success' => false, 'message' => 'Please login to add items to cart']);
                 exit;
@@ -682,77 +604,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
             exit;
-=======
-            if (isset($_POST['sub_service_id'])) {
-                $sub_service_id = intval($_POST['sub_service_id']);
-                $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 1;
-                $measurement = isset($_POST['measurement']) ? floatval($_POST['measurement']) : 0;
-                
-                // Fetch sub-service details
-                $stmt = $conn->prepare("
-                    SELECT 
-                        ss.*,
-                        s.service_name,
-                        s.provider_id,
-                        CASE 
-                            WHEN s.service_name LIKE '%wiring%' THEN 'measurement'
-                            WHEN s.service_name LIKE '%installation%' OR 
-                                 s.service_name LIKE '%repair%' OR 
-                                 s.service_name LIKE '%fan%' OR 
-                                 s.service_name LIKE '%switch%' THEN 'quantity'
-                            ELSE 'fixed'
-                        END as pricing_type
-                    FROM tbl_sub_services ss
-                    JOIN tbl_services s ON ss.service_id = s.service_id
-                    WHERE ss.sub_service_id = ?
-                ");
-                $stmt->bind_param("i", $sub_service_id);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                
-                if ($sub_service = $result->fetch_assoc()) {
-                    // Calculate final price based on pricing type
-                    $final_price = $sub_service['price'];
-                    if ($sub_service['pricing_type'] === 'quantity') {
-                        $final_price *= $quantity;
-                    } elseif ($sub_service['pricing_type'] === 'measurement') {
-                        $final_price *= $measurement;
-                    }
-                    
-                    // Initialize cart if not exists
-                    if (!isset($_SESSION['cart'])) {
-                        $_SESSION['cart'] = [];
-                    }
-                    
-                    // Add or update cart item
-                    $_SESSION['cart'][$sub_service_id] = [
-                        'sub_service_id' => $sub_service_id,
-                        'name' => $sub_service['sub_service_name'],
-                        'service_name' => $sub_service['service_name'],
-                        'price' => $sub_service['price'],
-                        'quantity' => $quantity,
-                        'measurement' => $measurement,
-                        'pricing_type' => $sub_service['pricing_type'],
-                        'final_price' => $final_price,
-                        'provider_id' => $sub_service['provider_id']
-                    ];
-                    
-                    echo json_encode([
-                        'success' => true,
-                        'message' => 'Item added to cart',
-                        'cart_count' => count($_SESSION['cart']),
-                        'cart_items' => $_SESSION['cart']
-                    ]);
-                } else {
-                    echo json_encode([
-                        'success' => false,
-                        'message' => 'Service not found'
-                    ]);
-                }
-                exit;
-            }
-            break;
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
             
         case 'remove_from_cart':
             if (isset($_POST['sub_service_id'])) {
@@ -769,7 +620,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'cart_items' => $_SESSION['cart']
                 ]);
                 exit;
-<<<<<<< HEAD
             }
             break;
             
@@ -1113,224 +963,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 exit;
             }
-=======
-            }
-            break;
-            
-        case 'update_quantity':
-            if (isset($_POST['sub_service_id']) && isset($_POST['quantity'])) {
-                $sub_service_id = intval($_POST['sub_service_id']);
-                $quantity = intval($_POST['quantity']);
-                
-                if ($quantity <= 0) {
-                    if (isset($_SESSION['cart'][$sub_service_id])) {
-                        unset($_SESSION['cart'][$sub_service_id]);
-                    }
-                } else {
-                    if (isset($_SESSION['cart'][$sub_service_id])) {
-                        $_SESSION['cart'][$sub_service_id]['quantity'] = $quantity;
-                    }
-                }
-                
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Cart updated',
-                    'cart_count' => count($_SESSION['cart']),
-                    'cart_items' => $_SESSION['cart']
-                ]);
-                exit;
-            }
-            break;
-            
-        case 'get_cart':
-            $cart_total = 0;
-            $cart_items = $_SESSION['cart'] ?? [];
-            
-            // Calculate total from cart items
-            foreach ($cart_items as $item) {
-                $cart_total += floatval($item['final_price']);
-            }
-            
-            $convenience_fee = $cart_total * 0.05;
-            $grand_total = $cart_total + $convenience_fee;
-            
-            echo json_encode([
-                'success' => true,
-                'cart_count' => count($cart_items),
-                'cart_items' => $cart_items,
-                'subtotal' => $cart_total,
-                'convenience_fee' => $convenience_fee,
-                'grand_total' => $grand_total
-            ]);
-            exit;
-            
-        case 'place_booking':
-            try {
-                // Debug: Log session and POST data
-                error_log("DEBUG - Session Data: " . json_encode($_SESSION));
-                error_log("DEBUG - POST Data: " . json_encode($_POST));
-
-                // Check if user is logged in
-                if (!isset($_SESSION['user_id'])) {
-                    throw new Exception('Please login to continue booking.');
-                }
-
-                // Check cart
-                if (!isset($_SESSION['cart']) || empty($_SESSION['cart'])) {
-                    throw new Exception('Cart is empty. Please add services to cart.');
-                }
-
-                // Validate required fields
-                $required_fields = [
-                    'booking_date' => 'Booking date',
-                    'booking_time' => 'Booking time',
-                    'address' => 'Address',
-                    'payment_method' => 'Payment method'
-                ];
-
-                foreach ($required_fields as $field => $label) {
-                    if (!isset($_POST[$field]) || empty($_POST[$field])) {
-                        throw new Exception($label . ' is required.');
-                    }
-                }
-
-                // Start transaction
-                $conn->begin_transaction();
-
-                // Prepare booking data
-                $booking_reference = generateBookingReference();
-                $user_id = $_SESSION['user_id'];
-                $booking_date = $_POST['booking_date'];
-                $booking_time = $_POST['booking_time'];
-                $address = $_POST['address'];
-                $payment_method = 'COD'; // Simplified to COD only
-
-                // Calculate totals
-                $subtotal = 0;
-                foreach ($_SESSION['cart'] as $item) {
-                    $subtotal += floatval($item['final_price']);
-                }
-                $convenience_fee = $subtotal * 0.05;
-                $total_amount = $subtotal + $convenience_fee;
-
-                // Get provider_id from first cart item
-                $first_item = reset($_SESSION['cart']);
-                $provider_id = $first_item['provider_id'];
-
-                // Insert booking
-                $booking_query = "INSERT INTO bookings (
-                    booking_reference, 
-                    user_id, 
-                    provider_id,
-                    booking_date, 
-                    booking_time, 
-                    address,
-                    subtotal,
-                    convenience_fee,
-                    total_amount,
-                    payment_method,
-                    payment_status,
-                    status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-                $stmt = $conn->prepare($booking_query);
-                if (!$stmt) {
-                    throw new Exception('Database Error: ' . $conn->error);
-                }
-
-                $payment_status = 'pending'; // For COD
-                $booking_status = 'pending';
-
-                $stmt->bind_param(
-                    "siisssdddss",
-                    $booking_reference,
-                    $user_id,
-                    $provider_id,
-                    $booking_date,
-                    $booking_time,
-                    $address,
-                    $subtotal,
-                    $convenience_fee,
-                    $total_amount,
-                    $payment_method,
-                    $payment_status,
-                    $booking_status
-                );
-
-                if (!$stmt->execute()) {
-                    throw new Exception('Error creating booking: ' . $stmt->error);
-                }
-
-                $booking_id = $conn->insert_id;
-
-                // Insert booking items
-                foreach ($_SESSION['cart'] as $item) {
-                    $items_query = "INSERT INTO booking_items (
-                        booking_id,
-                        sub_service_id,
-                        quantity,
-                        measurement,
-                        unit_price,
-                        total_price
-                    ) VALUES (?, ?, ?, ?, ?, ?)";
-
-                    $stmt = $conn->prepare($items_query);
-                    if (!$stmt) {
-                        throw new Exception('Error preparing booking items: ' . $conn->error);
-                    }
-
-                    $quantity = isset($item['quantity']) ? floatval($item['quantity']) : 1;
-                    $measurement = isset($item['measurement']) ? floatval($item['measurement']) : 0;
-                    $unit_price = floatval($item['price']);
-                    $total_price = floatval($item['final_price']);
-
-                    $stmt->bind_param(
-                        "iidddd",
-                        $booking_id,
-                        $item['sub_service_id'],
-                        $quantity,
-                        $measurement,
-                        $unit_price,
-                        $total_price
-                    );
-
-                    if (!$stmt->execute()) {
-                        throw new Exception('Error adding booking item: ' . $stmt->error);
-                    }
-                }
-
-                // Commit transaction and clear cart
-                $conn->commit();
-                $_SESSION['cart'] = [];
-
-                echo json_encode([
-                    'success' => true,
-                    'booking_reference' => $booking_reference,
-                    'message' => 'Booking placed successfully!'
-                ]);
-
-            } catch (Exception $e) {
-                if (isset($conn) && $conn->ping()) {
-                    $conn->rollback();
-                }
-                error_log("BOOKING ERROR: " . $e->getMessage());
-                echo json_encode([
-                    'success' => false,
-                    'message' => $e->getMessage()
-                ]);
-            }
-            break;
-            
-        default:
-            // No action or unknown action
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Invalid action'
-                ]);
-                exit;
-            }
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
     }
 }
 
@@ -1651,11 +1283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-<<<<<<< HEAD
 // ... rest of the code ...
-=======
-// ... existing code ...
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -2457,14 +2085,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             transition: all 0.3s;
         }
 
-<<<<<<< HEAD
-=======
-        .login-prompt-modal button:first-child {
-            background: #099409;
-            color: white;
-        }
-
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
         .login-prompt-modal button:last-child {
             background: #f8f9fa;
             color: #333;
@@ -2475,77 +2095,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             transform: translateY(-2px);
         }
 
-<<<<<<< HEAD
         /* Payment Summary Styles */
         .payment-summary {
-=======
-        /* Book a Visit Button Styles */
-        .book-visit-btn {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 15px;
-            width: auto;
-        }
-        
-        .book-visit-btn:hover {
-            background: #218838;
-        }
-        
-        /* Visit Booking Modal Styles */
-        .visit-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1001;
-        }
-        
-        .visit-modal .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-            position: relative;
-        }
-        
-        .visit-modal .close-modal {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            font-size: 24px;
-            cursor: pointer;
-        }
-        
-        .visit-modal h3 {
-            margin-bottom: 20px;
-            color: #2d3748;
-            font-size: 22px;
-        }
-        
-        .visit-fee-notice {
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
             background: #f8f9fa;
             padding: 15px;
             border-radius: 8px;
             margin-bottom: 20px;
-<<<<<<< HEAD
         }
 
         .payment-notice {
@@ -2597,236 +2152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             color: #ff4444;
             text-align: center;
             padding: 10px;
-=======
-            border-left: 4px solid #28a745;
-        }
-        
-        .visit-fee-notice p {
-            margin: 0;
-            font-size: 15px;
-        }
-        
-        .visit-fee-notice .fee {
-            font-weight: 600;
-            color: #28a745;
-        }
-        
-        .visit-success-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1001;
-        }
-        
-        .visit-success-modal .modal-content {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            text-align: center;
-            max-width: 500px;
-            width: 90%;
-            position: relative;
-            transform: scale(0.7);
-            transition: transform 0.3s ease-out;
-        }
-        
-        .visit-success-modal.show .modal-content {
-            transform: scale(1);
-        }
-
-        /* Emergency Booking Button Styles */
-        .emergency-btn {
-            background: #e53e3e;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 15px;
-            margin-left: 15px;
-            width: auto;
-        }
-        
-        .emergency-btn:hover {
-            background: #c53030;
-        }
-        
-        /* Emergency Booking Modal Styles */
-        .emergency-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1001;
-            overflow-y: auto; /* Enable vertical scrolling */
-            padding: 20px;
-        }
-        
-        .emergency-modal .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-            position: relative;
-            max-height: 90vh; /* Maximum height */
-            overflow-y: auto; /* Enable scrolling within the modal content */
-            margin: auto; /* Center the modal */
-        }
-        
-        .emergency-modal .close-modal {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            font-size: 24px;
-            cursor: pointer;
-            z-index: 1002; /* Ensure it's above other content */
-            background: #fff;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        
-        .emergency-modal .close-modal:hover {
-            background: #f8f8f8;
-        }
-        
-        .emergency-modal .modal-header {
-            position: sticky;
-            top: 0;
-            background: white;
-            padding-bottom: 15px;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #eee;
-            z-index: 1;
-        }
-        
-        .emergency-modal .modal-footer {
-            position: sticky;
-            bottom: 0;
-            background: white;
-            padding-top: 15px;
-            margin-top: 15px;
-            border-top: 1px solid #eee;
-        }
-        
-        /* Cancel button for mobile */
-        .cancel-btn {
-            display: none;
-            width: 100%;
-            padding: 12px;
-            margin-top: 10px;
-            background: #f1f1f1;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        
-        @media (max-width: 768px) {
-            .emergency-modal {
-                align-items: flex-start;
-                padding: 10px;
-            }
-            
-            .emergency-modal .modal-content {
-                padding: 20px;
-                max-height: 85vh;
-                margin-top: 30px;
-            }
-            
-            .cancel-btn {
-                display: block;
-            }
-        }
-        
-        .emergency-fee-notice {
-            background: #fff5f5;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border-left: 4px solid #e53e3e;
-        }
-        
-        .emergency-fee-notice p {
-            margin: 0;
-            font-size: 15px;
-        }
-        
-        .emergency-fee-notice .fee {
-            font-weight: 600;
-            color: #e53e3e;
-        }
-        
-        .emergency-success-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1001;
-        }
-        
-        .emergency-success-modal .modal-content {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            text-align: center;
-            max-width: 500px;
-            width: 90%;
-            position: relative;
-            transform: scale(0.7);
-            transition: transform 0.3s ease-out;
-        }
-        
-        .emergency-success-modal.show .modal-content {
-            transform: scale(1);
-        }
-        
-        .emergency-icon {
-            color: #e53e3e;
-            font-size: 64px;
-            margin-bottom: 20px;
-        }
-        
-        /* Action buttons container */
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        @media (max-width: 768px) {
-            .action-buttons {
-                flex-direction: column;
-            }
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
         }
     </style>
 </head>
@@ -2857,19 +2182,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $booking_count = $rating_result['booking_count'];
                     ?>
                     <span><?php echo $avg_rating; ?> (<?php echo number_format($booking_count/1000, 1); ?>K bookings)</span>
-                </div>
-                
-                <!-- Action buttons container -->
-                <div class="action-buttons">
-                    <!-- Book a Visit Button -->
-                    <button class="book-visit-btn" onclick="showVisitModal()">
-                        <i class="fas fa-calendar-check"></i> Book a Visit
-                    </button>
-                    
-                    <!-- Emergency Service Button -->
-                    <button class="emergency-btn" onclick="showEmergencyModal()">
-                        <i class="fas fa-exclamation-triangle"></i> Emergency Service
-                    </button>
                 </div>
             </div>
             
@@ -3020,7 +2332,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                     <div class="checkout-section" id="paymentSection" style="display: none;">
                         <h3>Payment</h3>
-<<<<<<< HEAD
                         <div class="payment-summary">
                             <h4>Order Summary</h4>
                             <div class="price-row">
@@ -3050,12 +2361,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <div class="form-actions">
                             <button type="button" class="back-btn" onclick="showStep(2)">Back</button>
                             <button type="button" class="pay-btn" onclick="placeBooking()">Place Order & Proceed to Payment</button>
-=======
-                        <div class="payment-methods">
-                            <label>
-                                <input type="radio" name="payment_method" value="COD"> Cash on Delivery
-                            </label>
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
                         </div>
                     </div>
                 </form>
@@ -3071,137 +2376,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </button>
     </div>
 
-<<<<<<< HEAD
-=======
-    <!-- Visit Booking Modal -->
-    <div id="visitModal" class="visit-modal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeVisitModal()">&times;</span>
-            <h3>Book a Technical Visit</h3>
-            
-            <div class="visit-fee-notice">
-                <p>A technician will visit your location to assess your requirements.</p>
-                <p>Visit fee: <span class="fee">₹<?php echo VISIT_BOOKING_FEE; ?></span> (payable on visit)</p>
-            </div>
-            
-            <form id="visitForm">
-                <input type="hidden" name="action" value="book_visit">
-                <input type="hidden" name="category_id" value="<?php echo $category_id; ?>">
-                
-                <div class="form-group">
-                    <label>Visit Date</label>
-                    <input type="date" name="visit_date" required min="<?php echo date('Y-m-d'); ?>">
-                </div>
-                
-                <div class="form-group">
-                    <label>Visit Time</label>
-                    <select name="visit_time" required>
-                        <?php for($i = 9; $i <= 17; $i++): ?>
-                            <option value="<?php echo sprintf('%02d:00', $i); ?>">
-                                <?php echo date('h:i A', strtotime(sprintf('%02d:00', $i))); ?>
-                            </option>
-                        <?php endfor; ?>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>Address</label>
-                    <textarea name="visit_address" required rows="3"></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label>Additional Notes (optional)</label>
-                    <textarea name="visit_notes" rows="3" placeholder="Describe your requirements or issues"></textarea>
-                </div>
-                
-                <button type="button" class="book-button" onclick="bookVisit()">Confirm Visit</button>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Visit Success Modal -->
-    <div id="visitSuccessModal" class="visit-success-modal">
-        <div class="modal-content">
-            <i class="fas fa-check-circle success-icon"></i>
-            <h2>Visit Scheduled!</h2>
-            <p>Your technical visit has been successfully scheduled.</p>
-            <p>Visit Reference: <strong id="visitReference"></strong></p>
-            <p>A confirmation email has been sent to your registered email address.</p>
-            <div class="modal-buttons">
-                <button onclick="window.location.href='visits.php'">View My Visits</button>
-                <button onclick="window.location.reload()">Continue Shopping</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Emergency Booking Modal -->
-    <div id="emergencyModal" class="emergency-modal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeEmergencyModal()">&times;</span>
-            
-            <div class="modal-header">
-                <h3><i class="fas fa-exclamation-triangle"></i> Emergency Service Request</h3>
-                
-                <div class="emergency-fee-notice">
-                    <p><strong>Need urgent help?</strong> Our technicians will prioritize your request.</p>
-                    <p>Emergency service fee: <span class="fee">₹<?php echo EMERGENCY_BOOKING_FEE; ?></span> (additional to service charges)</p>
-                    <p>Expected response time: <strong>Within 2 hours</strong></p>
-                </div>
-            </div>
-            
-            <form id="emergencyForm">
-                <input type="hidden" name="action" value="book_emergency">
-                <input type="hidden" name="category_id" value="<?php echo $category_id; ?>">
-                
-                <div class="form-group">
-                    <label>Your Name*</label>
-                    <input type="text" name="emergency_name" required>
-                </div>
-                
-                <div class="form-group">
-                    <label>Phone Number*</label>
-                    <input type="tel" name="emergency_phone" required pattern="[0-9]{10}">
-                </div>
-                
-                <div class="form-group">
-                    <label>Email Address*</label>
-                    <input type="email" name="emergency_email" required>
-                </div>
-                
-                <div class="form-group">
-                    <label>Address*</label>
-                    <textarea name="emergency_address" required rows="3"></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label>Describe Your Emergency*</label>
-                    <textarea name="emergency_issue" required rows="4" placeholder="Please provide details about your emergency situation"></textarea>
-                </div>
-                
-                <div class="modal-footer">
-                    <button type="button" class="book-button" style="background-color: #e53e3e;" onclick="bookEmergency()">Request Emergency Service</button>
-                    <button type="button" class="cancel-btn" onclick="closeEmergencyModal()">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Emergency Success Modal -->
-    <div id="emergencySuccessModal" class="emergency-success-modal">
-        <div class="modal-content">
-            <i class="fas fa-exclamation-circle emergency-icon"></i>
-            <h2>Emergency Request Received!</h2>
-            <p>Your emergency service request has been successfully submitted.</p>
-            <p>Reference: <strong id="emergencyReference"></strong></p>
-            <p>A technician will contact you shortly. Please keep your phone available.</p>
-            <div class="modal-buttons">
-                <button onclick="window.location.href='emergency.php'" style="background-color: #e53e3e;">View Request Status</button>
-                <button onclick="window.location.reload()">Close</button>
-            </div>
-        </div>
-    </div>
-
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
     <script>
      function toggleSubServices(serviceId) {
         const subServices = document.getElementById(`sub-services-${serviceId}`);
@@ -3422,7 +2596,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
 
-<<<<<<< HEAD
     function placeBooking() {
         console.log('placeBooking called');
         
@@ -3528,8 +2701,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         });
     }
 
-=======
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
     // Close modal handlers
     document.querySelector('.close-modal').onclick = function() {
         document.getElementById('checkoutModal').style.display = 'none';
@@ -3557,7 +2728,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 
     function addToCart(subServiceId, name, basePrice, pricingType) {
-<<<<<<< HEAD
         console.log('Adding to cart:', subServiceId, name, basePrice, pricingType);
         
         // Set the service ID in the main hidden field
@@ -3566,8 +2736,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Store in session storage as well
         sessionStorage.setItem('serviceId', subServiceId);
         
-=======
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
         let quantity = 1;
         let measurement = 0;
         let finalPrice = basePrice;
@@ -3653,7 +2821,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 
                 // Update service summary with all cart items
                 let summaryHTML = Object.values(cartItems).map(item => {
-<<<<<<< HEAD
                     // Debug log to see the actual item data
                     console.log('Cart item data:', item);
                     
@@ -3688,29 +2855,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             </div>
                             
                             <button class="remove-item" data-sub-service-id="${item.sub_service_id}">
-=======
-                    return `
-                        <div class="service-item">
-                            <div class="service-details">
-                                <h4>${item.name}</h4>
-                                <p class="service-meta">
-                                    ${item.pricing_type === 'quantity' ? 
-                                        `Quantity: ${item.quantity} units × ₹${parseFloat(item.price).toFixed(2)}` : 
-                                        item.pricing_type === 'measurement' ? 
-                                        `Measurement: ${item.measurement} meters × ₹${parseFloat(item.price).toFixed(2)}` : 
-                                        `Fixed Price: ₹${parseFloat(item.price).toFixed(2)}`}
-                                </p>
-                                <p class="price">Subtotal: ₹${parseFloat(item.final_price).toFixed(2)}</p>
-                            </div>
-                            <button class="remove-item-btn" onclick="removeFromCart(${item.sub_service_id})">
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     `;
                 }).join('');
 
-<<<<<<< HEAD
                 // Calculate totals
                 const subtotal = Object.values(cartItems).reduce((sum, item) => {
                     const itemPrice = parseFloat(item.final_price || 0);
@@ -3720,14 +2870,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 const convenienceFee = subtotal * 0.05; // 5% convenience fee
                 const grandTotal = subtotal + convenienceFee;
 
-=======
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
                 // If cart is empty, show message
                 if (Object.keys(cartItems).length === 0) {
                     summaryHTML = '<div class="empty-cart">Your cart is empty</div>';
                 }
 
-<<<<<<< HEAD
                 // Update the DOM with calculated values
                 document.getElementById('selectedServiceInfo').innerHTML = summaryHTML;
                 document.getElementById('serviceCharge').textContent = `₹${subtotal.toFixed(2)}`;
@@ -3750,12 +2897,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     convenienceFee,
                     grandTotal
                 });
-=======
-                document.getElementById('selectedServiceInfo').innerHTML = summaryHTML;
-                document.getElementById('serviceCharge').textContent = `₹${parseFloat(data.subtotal).toFixed(2)}`;
-                document.getElementById('convenienceFee').textContent = `₹${parseFloat(data.convenience_fee).toFixed(2)}`;
-                document.getElementById('totalAmount').textContent = `₹${parseFloat(data.grand_total).toFixed(2)}`;
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
 
                 // Show checkout modal
                 showStep(1);
@@ -3837,33 +2978,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         });
     }
 
-<<<<<<< HEAD
-=======
-    function placeBooking() {
-        const formData = new FormData(document.getElementById('checkoutForm'));
-        formData.append('action', 'place_booking');
-
-        fetch(window.location.href, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccessMessage(data.message);
-                // Clear cart and redirect to bookings page
-                window.location.href = 'bookings.php';
-            } else {
-                showPaymentError(data.message || 'Error placing booking');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showPaymentError('Error placing booking');
-        });
-    }
-
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
     function removeFromCart(subServiceId) {
         fetch(window.location.href, {
             method: 'POST',
@@ -3891,7 +3005,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         });
     }
 
-<<<<<<< HEAD
     // Add loading overlay functions
     function showLoadingOverlay(message) {
         const overlay = document.createElement('div');
@@ -4140,112 +3253,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 </script>
 </body>
 </html> 
-=======
-    // Visit booking functions
-    function showVisitModal() {
-        // Show visit booking modal directly without any login check
-        document.getElementById('visitModal').style.display = 'flex';
-    }
-    
-    function closeVisitModal() {
-        document.getElementById('visitModal').style.display = 'none';
-    }
-    
-    // Remove or comment out the showLoginPrompt function
-    /*
-    function showLoginPrompt() {
-        document.getElementById('loginPromptModal').style.display = 'flex';
-    }
-    */
-    
-    function bookVisit() {
-        const formData = new FormData(document.getElementById('visitForm'));
-        
-        fetch(window.location.href, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Close visit modal
-                closeVisitModal();
-                
-                // Show success modal
-                document.getElementById('visitReference').textContent = data.visit_reference;
-                document.getElementById('visitSuccessModal').style.display = 'flex';
-                
-                // Add animation class
-                setTimeout(() => {
-                    document.getElementById('visitSuccessModal').classList.add('show');
-                }, 10);
-            } else {
-                showPaymentError(data.message || 'Error booking visit');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showPaymentError('Error booking visit');
-        });
-    }
-
-    // Emergency booking functions
-    function showEmergencyModal() {
-        const modal = document.getElementById('emergencyModal');
-        modal.style.display = 'flex';
-        
-        // Prevent body scrolling when modal is open
-        document.body.style.overflow = 'hidden';
-        
-        // Reset form if needed
-        document.getElementById('emergencyForm').reset();
-    }
-    
-    function closeEmergencyModal() {
-        document.getElementById('emergencyModal').style.display = 'none';
-        
-        // Re-enable body scrolling
-        document.body.style.overflow = '';
-    }
-    
-    // Close modal if user clicks outside the modal content
-    document.getElementById('emergencyModal').addEventListener('click', function(event) {
-        if (event.target === this) {
-            closeEmergencyModal();
-        }
-    });
-    
-    function bookEmergency() {
-        const formData = new FormData(document.getElementById('emergencyForm'));
-        
-        fetch(window.location.href, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Close emergency modal
-                closeEmergencyModal();
-                
-                // Show success modal
-                document.getElementById('emergencyReference').textContent = data.emergency_reference;
-                document.getElementById('emergencySuccessModal').style.display = 'flex';
-                
-                // Add animation class
-                setTimeout(() => {
-                    document.getElementById('emergencySuccessModal').classList.add('show');
-                }, 10);
-            } else {
-                showPaymentError(data.message || 'Error requesting emergency service');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showPaymentError('Error requesting emergency service');
-        });
-    }
-    </script>
-</body>
-</html>
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232

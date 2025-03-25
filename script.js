@@ -137,6 +137,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const dots = document.querySelectorAll('.dot');
 
     function goToSlide(n) {
+      // Check if slides exist before trying to access them
+      const slides = document.getElementsByClassName("hero-slide");
+      if (!slides || slides.length === 0) {
+          return; // Exit if no slides found
+      }
+      
       slides[currentSlide].classList.remove('active2');
       dots[currentSlide].classList.remove('active');
       
@@ -150,6 +156,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function nextSlide() {
+      // Check if slides exist before proceeding
+      const slides = document.getElementsByClassName("hero-slide");
+      if (!slides || slides.length === 0) {
+          return; // Exit if no slides found
+      }
+      
       goToSlide(currentSlide + 1);
     }
 
@@ -200,6 +212,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function nextSlide() {
+        // Check if slides exist before proceeding
+        const slides = document.getElementsByClassName("hero-slide");
+        if (!slides || slides.length === 0) {
+            return; // Exit if no slides found
+        }
+        
         if (isTransitioning) return;
         currentSlide = (currentSlide + 1) % slides.length;
         if (currentSlide === slides.length - 1) {
@@ -484,3 +502,185 @@ function processPayment() {
     }
     initializeRazorpay(selectedMethod);
 }
+
+// Slider functionality with robust error handling
+let slideIndex = 0;
+let slideInterval;
+
+// Wait for DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    initializeSlider();
+});
+
+function initializeSlider() {
+    const slidesContainer = document.querySelector('.hero-slider');
+    
+    // Only initialize if slider exists on the page
+    if (!slidesContainer) {
+        console.log('No slider found on this page');
+        return;
+    }
+    
+    const slides = document.querySelectorAll('.hero-slide');
+    
+    // Check if slides exist
+    if (!slides || slides.length === 0) {
+        console.error('No slides found in the slider');
+        return;
+    }
+    
+    console.log(`Slider initialized with ${slides.length} slides`);
+    
+    // Set initial slide
+    goToSlide(slideIndex);
+    
+    // Set up auto-rotation if more than one slide
+    if (slides.length > 1) {
+        // Clear any existing intervals first
+        if (slideInterval) {
+            clearInterval(slideInterval);
+        }
+        slideInterval = setInterval(nextSlide, 5000);
+    }
+    
+    // Set up manual navigation if it exists
+    const prevButton = document.querySelector('.prev-slide');
+    const nextButton = document.querySelector('.next-slide');
+    
+    if (prevButton) {
+        prevButton.addEventListener('click', function() {
+            prevSlide();
+        });
+    }
+    
+    if (nextButton) {
+        nextButton.addEventListener('click', function() {
+            nextSlide();
+        });
+    }
+    
+    // Set up dot navigation if it exists
+    const dots = document.querySelectorAll('.dot');
+    if (dots && dots.length > 0) {
+        dots.forEach((dot, index) => {
+            dot.addEventListener('click', function() {
+                goToSlide(index);
+            });
+        });
+    }
+}
+
+function goToSlide(n) {
+    // Get all slides and dots safely
+    const slides = document.querySelectorAll('.hero-slide');
+    const dots = document.querySelectorAll('.dot');
+    
+    // Safety check - if no slides, exit function
+    if (!slides || slides.length === 0) {
+        console.error('No slides found when trying to go to slide');
+        return;
+    }
+    
+    // Reset slideIndex if out of bounds
+    if (n >= slides.length) {
+        slideIndex = 0;
+    } else if (n < 0) {
+        slideIndex = slides.length - 1;
+    } else {
+        slideIndex = n;
+    }
+    
+    console.log(`Going to slide ${slideIndex} of ${slides.length}`);
+    
+    // Hide all slides first
+    slides.forEach(slide => {
+        if (slide && slide.classList) {
+            slide.classList.remove('active');
+        }
+    });
+    
+    // Remove active from all dots
+    if (dots && dots.length > 0) {
+        dots.forEach(dot => {
+            if (dot && dot.classList) {
+                dot.classList.remove('active');
+            }
+        });
+    }
+    
+    // Safety checks before accessing elements
+    if (slides[slideIndex] && slides[slideIndex].classList) {
+        slides[slideIndex].classList.add('active');
+    } else {
+        console.error(`Cannot access slide at index ${slideIndex}`);
+    }
+    
+    if (dots && dots.length > 0 && dots[slideIndex] && dots[slideIndex].classList) {
+        dots[slideIndex].classList.add('active');
+    }
+}
+
+function nextSlide() {
+    const slides = document.querySelectorAll('.hero-slide');
+    if (!slides || slides.length === 0) {
+        console.error('No slides found when trying to go to next slide');
+        return;
+    }
+    
+    goToSlide(slideIndex + 1);
+}
+
+function prevSlide() {
+    const slides = document.querySelectorAll('.hero-slide');
+    if (!slides || slides.length === 0) {
+        console.error('No slides found when trying to go to previous slide');
+        return;
+    }
+    
+    goToSlide(slideIndex - 1);
+}
+
+// Add this to your script.js file to restore toggle button functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Mobile menu toggle
+    const menuToggle = document.querySelector('.menu-toggle');
+    const mobileMenu = document.querySelector('.mobile-menu');
+    
+    if (menuToggle && mobileMenu) {
+        menuToggle.addEventListener('click', function() {
+            mobileMenu.classList.toggle('active');
+            menuToggle.classList.toggle('active');
+        });
+    }
+    
+    // Any other toggle buttons on the page
+    const toggleButtons = document.querySelectorAll('[data-toggle]');
+    toggleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-toggle');
+            const targetElement = document.getElementById(targetId);
+            
+            if (targetElement) {
+                if (targetElement.style.display === 'none' || targetElement.style.display === '') {
+                    targetElement.style.display = 'block';
+                } else {
+                    targetElement.style.display = 'none';
+                }
+                
+                // Toggle active class on the button
+                this.classList.toggle('active');
+            }
+        });
+    });
+    
+    // Floating action buttons toggle
+    const fabToggle = document.querySelector('.fab-toggle');
+    const fabActions = document.querySelector('.fab-actions');
+    
+    if (fabToggle && fabActions) {
+        fabToggle.addEventListener('click', function() {
+            fabActions.classList.toggle('active');
+            this.classList.toggle('active');
+        });
+    }
+});

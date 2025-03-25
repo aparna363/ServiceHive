@@ -274,6 +274,22 @@ $result = $stmt->get_result();
             color: #1565c0;
         }
 
+        /* Add this new CSS for auto-accepted status */
+        .booking-status:has(.auto-accepted-badge) {
+            padding-right: 8px;
+        }
+
+        .auto-accepted-badge {
+            display: inline-block;
+            font-size: 10px;
+            background: #071642;
+            color: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+
         @media (max-width: 768px) {
             .bookings-grid {
                 grid-template-columns: 1fr;
@@ -309,6 +325,21 @@ $result = $stmt->get_result();
         .back-button:hover {
             background: #e64a19;
             transform: translateY(-2px);
+        }
+
+        .info-value div {
+            margin-bottom: 4px;
+        }
+
+        .info-value div:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Add this if you want to show services in a more compact way */
+        .services-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
     </style>
 </head>
@@ -382,8 +413,16 @@ $result = $stmt->get_result();
                                 
                                 <div class="info-row">
                                     <span class="info-label"><i class="fas fa-tasks"></i> Status:</span>
-                                    <span class="booking-status status-<?php echo strtolower($booking['status']); ?>">
-                                        <?php echo ucfirst($booking['status']); ?>
+                                    <span class="booking-status status-<?php echo strtolower($booking['payment_status'] == 'paid' ? 'accepted' : $booking['status']); ?>">
+                                        <?php 
+                                        if ($booking['status'] == 'accepted' && isset($booking['auto_approved']) && $booking['auto_approved'] == 1) {
+                                            echo 'Auto-Accepted';
+                                        } else if ($booking['payment_status'] == 'paid' && $booking['status'] == 'pending') {
+                                            echo 'Accepted';
+                                        } else {
+                                            echo ucfirst($booking['status']);
+                                        }
+                                        ?>
                                     </span>
                                 </div>
                                 

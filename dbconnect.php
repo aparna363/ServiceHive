@@ -28,6 +28,9 @@ try {
     // Temporarily disable foreign key checks
     $conn->query("SET FOREIGN_KEY_CHECKS=0");
 
+    // Drop the booking_services table if it exists
+    $conn->query("DROP TABLE IF EXISTS booking_services");
+
     // Array of table creation queries - ordered to handle foreign key dependencies
     $tables = [
         // Tables with no foreign keys first
@@ -274,46 +277,42 @@ try {
             INDEX idx_provider (provider_id),
             INDEX idx_status (status)
         )",
+        
         'visit_bookings' => "CREATE TABLE IF NOT EXISTS visit_bookings (
-            visit_id INT AUTO_INCREMENT PRIMARY KEY,
-            visit_reference VARCHAR(20) NOT NULL,
-            user_id INT NOT NULL,
-            provider_id INT NOT NULL,
-            category_id INT NOT NULL,
-            visit_date DATE NOT NULL,
-            visit_time TIME NOT NULL,
-            address TEXT NOT NULL,
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT,
+            category_id INT,
+            visit_date DATE,
+            visit_time TIME,
+            address TEXT,
             notes TEXT,
-            visit_fee DECIMAL(10,2) NOT NULL DEFAULT 99.00,
-            payment_method VARCHAR(20) NOT NULL DEFAULT 'COD',
-            payment_status VARCHAR(20) NOT NULL DEFAULT 'pending',
-            status VARCHAR(20) NOT NULL DEFAULT 'scheduled',
+            reference VARCHAR(20) UNIQUE,
+            status ENUM('pending', 'confirmed', 'completed', 'cancelled') DEFAULT 'pending',
+            amount INT,
+            payment_status ENUM('pending', 'paid', 'refunded', 'failed') DEFAULT 'pending',
+            razorpay_order_id VARCHAR(100),
+            razorpay_payment_id VARCHAR(100),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            FOREIGN KEY (provider_id) REFERENCES service_providers(provider_id),
-            FOREIGN KEY (category_id) REFERENCES tbl_categories(category_id)
+            payment_date TIMESTAMP NULL
         )",
         
         'emergency_bookings' => "CREATE TABLE IF NOT EXISTS emergency_bookings (
-            emergency_id INT AUTO_INCREMENT PRIMARY KEY,
-            emergency_reference VARCHAR(20) NOT NULL,
-            user_id INT NOT NULL DEFAULT 0,
-            provider_id INT NOT NULL,
-            category_id INT NOT NULL,
-            address TEXT NOT NULL,
-            issue_description TEXT NOT NULL,
-            customer_name VARCHAR(100) NOT NULL,
-            customer_phone VARCHAR(20) NOT NULL,
-            customer_email VARCHAR(100) NOT NULL,
-            emergency_fee DECIMAL(10,2) NOT NULL DEFAULT 299.00,
-            payment_method VARCHAR(20) NOT NULL DEFAULT 'COD',
-            payment_status VARCHAR(20) NOT NULL DEFAULT 'pending',
-            status VARCHAR(20) NOT NULL DEFAULT 'urgent',
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT,
+            category_id INT,
+            address TEXT,
+            issue_description TEXT,
+            name VARCHAR(100),
+            email VARCHAR(100),
+            phone VARCHAR(20),
+            reference VARCHAR(20) UNIQUE,
+            status ENUM('pending', 'confirmed', 'completed', 'cancelled') DEFAULT 'pending',
+            amount INT,
+            payment_status ENUM('pending', 'paid', 'refunded', 'failed') DEFAULT 'pending',
+            razorpay_order_id VARCHAR(100),
+            razorpay_payment_id VARCHAR(100),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (provider_id) REFERENCES service_providers(provider_id),
-            FOREIGN KEY (category_id) REFERENCES tbl_categories(category_id)
+            payment_date TIMESTAMP NULL
         )"
     ];
 

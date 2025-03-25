@@ -60,14 +60,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $upload_success = true;
     $file_paths = [];
     
-    // Process ID front
-    if (isset($_FILES['id_front']) && $_FILES['id_front']['error'] == 0) {
-        $id_front_name = time() . '_front_' . basename($_FILES['id_front']['name']);
+    // Process ID front - Fix field name to match the form
+    if (isset($_FILES['id_proof_front']) && $_FILES['id_proof_front']['error'] == 0) {
+        $id_front_name = time() . '_front_' . basename($_FILES['id_proof_front']['name']);
         $id_front_path = $target_dir . $id_front_name;
         
         debug_log("Uploading ID front to: $id_front_path");
         
-        if (!move_uploaded_file($_FILES['id_front']['tmp_name'], $id_front_path)) {
+        if (!move_uploaded_file($_FILES['id_proof_front']['tmp_name'], $id_front_path)) {
             $upload_success = false;
             debug_log("Failed to upload ID front image");
             $_SESSION['verification_error'] = 'Failed to upload ID front image.';
@@ -76,18 +76,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } else {
         $upload_success = false;
-        debug_log("ID front image is required. Error code: " . ($_FILES['id_front']['error'] ?? 'not set'));
+        debug_log("ID front image is required. Error code: " . ($_FILES['id_proof_front']['error'] ?? 'not set'));
         $_SESSION['verification_error'] = 'ID front image is required.';
     }
     
-    // Process ID back
-    if ($upload_success && isset($_FILES['id_back']) && $_FILES['id_back']['error'] == 0) {
-        $id_back_name = time() . '_back_' . basename($_FILES['id_back']['name']);
+    // Process ID back - Fix field name to match the form
+    if ($upload_success && isset($_FILES['id_proof_back']) && $_FILES['id_proof_back']['error'] == 0) {
+        $id_back_name = time() . '_back_' . basename($_FILES['id_proof_back']['name']);
         $id_back_path = $target_dir . $id_back_name;
         
         debug_log("Uploading ID back to: $id_back_path");
         
-        if (!move_uploaded_file($_FILES['id_back']['tmp_name'], $id_back_path)) {
+        if (!move_uploaded_file($_FILES['id_proof_back']['tmp_name'], $id_back_path)) {
             $upload_success = false;
             debug_log("Failed to upload ID back image");
             $_SESSION['verification_error'] = 'Failed to upload ID back image.';
@@ -96,11 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } else {
         $upload_success = false;
-        debug_log("ID back image is required. Error code: " . ($_FILES['id_back']['error'] ?? 'not set'));
+        debug_log("ID back image is required. Error code: " . ($_FILES['id_proof_back']['error'] ?? 'not set'));
         $_SESSION['verification_error'] = 'ID back image is required.';
     }
     
-    // Process address proof
+    // Process address proof - Fix field name to match the form
     if ($upload_success && isset($_FILES['address_proof']) && $_FILES['address_proof']['error'] == 0) {
         $address_name = time() . '_address_' . basename($_FILES['address_proof']['name']);
         $address_path = $target_dir . $address_name;
@@ -124,10 +124,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($upload_success) {
         debug_log("All uploads successful, saving to database");
         
-        // Insert verification documents
+        // Check if table exists and get column information
+        $check_table = $conn->query("SHOW TABLES LIKE 'verification_documents'");
+        if ($check_table->num_rows == 0) {
+            // Create table if it doesn't exist
+            debug_log("Creating verification_documents table");
+            $create_table = "CREATE TABLE verification_documents (
+                doc_id INT AUTO_INCREMENT PRIMARY KEY,
+                provider_id INT NOT NULL,
+                id_type VARCHAR(50) NOT NULL,
+                id_number VARCHAR(100) NOT NULL,
+                id_proof_front VARCHAR(255) NOT NULL,
+                id_proof_back VARCHAR(255) NOT NULL,
+                address_proof VARCHAR(255) NOT NULL,
+                uploaded_at DATETIME NOT NULL,
+                status VARCHAR(20) DEFAULT 'pending',
+                admin_notes TEXT,
+                updated_at DATETIME
+            )";
+            $conn->query($create_table);
+        }
+        
+        // Insert verification documents with the correct column names
         $stmt = $conn->prepare("
             INSERT INTO verification_documents 
-            (provider_id, id_type, id_number, id_front_path, id_back_path, address_proof_path, uploaded_at) 
+            (provider_id, id_type, id_number, id_proof_front, id_proof_back, address_proof, uploaded_at) 
             VALUES (?, ?, ?, ?, ?, ?, NOW())
         ");
         $stmt->bind_param("isssss", $provider_id, $id_type, $id_number, $file_paths['id_front'], $file_paths['id_back'], $file_paths['address_proof']);
@@ -144,8 +165,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("i", $provider_id);
             $stmt->execute();
             
-            // Set session flag for verification pending
+            // Set session flags for verification pending
             $_SESSION['verification_submitted'] = true;
+            $_SESSION['verification_just_submitted'] = true;
             
             // Redirect to dashboard
             header('Location: provider_dashboard.php');

@@ -11,6 +11,47 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
+// Initialize variables
+$items = [];
+$subtotal = 0;
+$total = 0;
+$tax = 0;
+
+// Fetch cart items
+$cart_query = "SELECT 
+    c.*,
+    ss.sub_service_name,
+    ss.price,
+    ts.service_name,
+    ts.service_id,
+    ts.description as service_description
+FROM cart c 
+JOIN tbl_sub_services ss ON c.sub_service_id = ss.sub_service_id 
+JOIN tbl_services ts ON ss.service_id = ts.service_id
+WHERE c.user_id = ? AND c.status = 'pending'";
+
+$stmt = $conn->prepare($cart_query);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$cart_result = $stmt->get_result();
+
+// Check if cart is empty
+if ($cart_result->num_rows === 0) {
+    $_SESSION['error'] = "Your cart is empty. Please add services to continue.";
+    header("Location: services.php");
+    exit();
+}
+
+// Process cart items
+while ($item = $cart_result->fetch_assoc()) {
+    $items[] = $item;
+    $subtotal += $item['final_price'];
+}
+
+// Calculate tax and total
+$tax = round($subtotal * 0.05, 2);
+$total = round($subtotal + $tax, 2);
+
 // First try to get booking_id from GET parameter
 if (isset($_GET['booking_id'])) {
     $booking_id = $_GET['booking_id'];
@@ -47,49 +88,6 @@ if (isset($_GET['booking_id'])) {
     $subtotal = $booking['amount'];
 
 } else {
-    // Fetch cart items if no booking_id
-    $cart_query = "SELECT 
-        c.*,
-        ss.sub_service_name,
-        ss.price,
-        ts.service_name,
-        ts.service_id,
-        ts.description as service_description
-    FROM cart c 
-    JOIN tbl_sub_services ss ON c.sub_service_id = ss.sub_service_id 
-    JOIN tbl_services ts ON ss.service_id = ts.service_id
-    WHERE c.user_id = ? AND c.status = 'pending'";
-
-    // Add debug logging
-    error_log("Fetching cart for user_id: " . $user_id);
-    $stmt = $conn->prepare($cart_query);
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $cart_items = $stmt->get_result();
-
-    // Debug: Log the number of items found
-    error_log("Number of cart items found: " . $cart_items->num_rows);
-
-    // Calculate totals from cart
-    $subtotal = 0;
-    $items = [];
-    $service_ids = [];
-
-    while ($item = $cart_items->fetch_assoc()) {
-        error_log("Cart item found: " . json_encode($item)); // Debug log
-        $subtotal += $item['final_price'];
-        $items[] = $item;
-        $service_ids[] = $item['service_id'];
-    }
-
-    // Only redirect if cart is empty
-    if (empty($items)) {
-        error_log("No items found in cart for user_id: " . $user_id); // Debug log
-        $_SESSION['error'] = "Your cart is empty. Please add services to continue.";
-        header("Location: services.php");
-        exit();
-    }
-
     // Use the first service's details for display
     $booking = [
         'service_id' => $items[0]['service_id'],
@@ -793,6 +791,51 @@ if (isset($_SESSION['error'])) {
         .upi-option.selected + .upi-details-container {
             display: block;
         }
+
+        .cart-items {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .cart-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .cart-item:last-child {
+            border-bottom: none;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .item-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .item-price {
+            font-weight: 600;
+            color: rgb(187, 118, 14);
+        }
+
+        .item-details {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .item-quantity, .item-measurement {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
     </style>
 </head>
 <body>
@@ -827,15 +870,12 @@ if (isset($_SESSION['error'])) {
 
         <div class="service-details">
             <div class="service-name">
-                <i class="fas fa-tools"></i> 
-                <?php 
-                echo htmlspecialchars($booking['service_name']) . 
-                     " (Service ID: " . htmlspecialchars($booking['service_id']) . ")"; 
-                ?>
+                <i class="fas fa-shopping-cart"></i> 
+                Multiple Services
             </div>
             <div class="service-info">
-                <span><i class="far fa-calendar-alt"></i> Booking ID: #<?php echo $booking_id; ?></span>
-                <span><i class="far fa-clock"></i> Expected Service Time: 60 mins</span>
+                <span><i class="fas fa-box"></i> <?php echo count($items); ?> Services</span>
+                <span><i class="far fa-clock"></i> Total Time: <?php echo count($items) * 60; ?> mins</span>
                 <span><i class="fas fa-user-clock"></i> Professional will arrive at your location</span>
             </div>
         </div>
@@ -847,25 +887,21 @@ if (isset($_SESSION['error'])) {
                         <i class="fas fa-clipboard-list"></i> Booking Details
                     </div>
                     <div class="card-body">
-                        <div class="info-item">
-                            <span class="info-label">Service</span>
-                            <span class="info-value">
-                                <?php echo htmlspecialchars($booking['service_name']); ?>
-                                <br>
-                                <small>ID: <?php echo htmlspecialchars($booking['service_id']); ?></small>
-                            </span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Booking ID</span>
-                            <span class="info-value">#<?php echo $booking_id; ?></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Amount</span>
-                            <span class="info-value">₹<?php echo number_format($subtotal, 2); ?></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Tax (5%)</span>
-                            <span class="info-value">₹<?php echo number_format($tax, 2); ?></span>
+                        <div class="cart-items">
+                            <?php foreach ($items as $item): ?>
+                            <div class="cart-item">
+                                <div class="item-header">
+                                    <span class="item-name"><?php echo htmlspecialchars($item['sub_service_name']); ?></span>
+                                    <span class="item-price">₹<?php echo number_format($item['final_price'], 2); ?></span>
+                                </div>
+                                <div class="item-details">
+                                    <span class="item-quantity">Quantity: <?php echo $item['quantity']; ?></span>
+                                    <?php if ($item['measurement']): ?>
+                                    <span class="item-measurement"><?php echo htmlspecialchars($item['measurement']); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
                         </div>
                         <div class="info-item total-row">
                             <span class="info-label">Total Amount</span>
@@ -1064,101 +1100,98 @@ if (isset($_SESSION['error'])) {
             console.log('Selected payment method:', window.paymentDetails);
         }
 
-        // ... existing code ...
+        document.getElementById('pay-button').addEventListener('click', function() {
+            if (!window.paymentDetails || !window.paymentDetails.method) {
+                alert('Please select a payment method');
+                return;
+            }
 
-document.getElementById('pay-button').addEventListener('click', function() {
-    if (!window.paymentDetails || !window.paymentDetails.method) {
-        alert('Please select a payment method');
-        return;
-    }
+            // Disable the pay button to prevent double clicks
+            const payButton = document.getElementById('pay-button');
+            payButton.disabled = true;
+            payButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
-    // Disable the pay button to prevent double clicks
-    const payButton = document.getElementById('pay-button');
-    payButton.disabled = true;
-    payButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            const options = {
+                key: "<?php echo $razorpay_key_id; ?>",
+                amount: <?php echo round($total * 100); ?>,
+                currency: "INR",
+                name: "ServiceHive",
+                description: "Booking #<?php echo $booking_id; ?>",
+                prefill: {
+                    name: "<?php echo htmlspecialchars($booking['username']); ?>",
+                    email: "<?php echo htmlspecialchars($booking['email']); ?>",
+                    contact: "<?php echo htmlspecialchars($booking['mobile']); ?>"
+                },
+                method: window.paymentDetails.method,
+                handler: function(response) {
+                    handlePaymentResponse(response, payButton);
+                },
+                modal: {
+                    ondismiss: function() {
+                        // Re-enable the pay button if modal is dismissed
+                        payButton.disabled = false;
+                        payButton.innerHTML = '<i class="fas fa-lock"></i> Pay Securely Now';
+                    }
+                },
+                notes: {
+                    booking_id: "<?php echo $booking_id; ?>"
+                }
+            };
 
-    const options = {
-        key: "<?php echo $razorpay_key_id; ?>",
-        amount: <?php echo round($total * 100); ?>,
-        currency: "INR",
-        name: "ServiceHive",
-        description: "Booking #<?php echo $booking_id; ?>",
-        prefill: {
-            name: "<?php echo htmlspecialchars($booking['username']); ?>",
-            email: "<?php echo htmlspecialchars($booking['email']); ?>",
-            contact: "<?php echo htmlspecialchars($booking['mobile']); ?>"
-        },
-        method: window.paymentDetails.method,
-        handler: function(response) {
-            handlePaymentResponse(response, payButton);
-        },
-        modal: {
-            ondismiss: function() {
-                // Re-enable the pay button if modal is dismissed
+            const rzp = new Razorpay(options);
+            rzp.open();
+        });
+
+        function handlePaymentResponse(response, payButton) {
+            const paymentData = {
+                booking_id: <?php echo $booking_id; ?>,
+                payment_id: response.razorpay_payment_id,
+                amount: <?php echo $total; ?>,
+                payment_method: window.paymentDetails.method,
+                user_id: <?php echo $user_id; ?>,
+                cart_items: <?php echo json_encode($items); ?>
+            };
+
+            // Show loading state
+            document.body.style.cursor = 'wait';
+
+            fetch('process_payment.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(paymentData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    window.location.href = 'payment_success.php?' + new URLSearchParams({
+                        booking_id: paymentData.booking_id,
+                        payment_id: paymentData.payment_id,
+                        amount: paymentData.amount,
+                        status: 'success'
+                    }).toString();
+                } else {
+                    throw new Error(data.message || 'Payment verification failed');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your payment. Please try again.');
+                
+                // Re-enable the pay button
                 payButton.disabled = false;
                 payButton.innerHTML = '<i class="fas fa-lock"></i> Pay Securely Now';
-            }
-        },
-        notes: {
-            booking_id: "<?php echo $booking_id; ?>"
+            })
+            .finally(() => {
+                document.body.style.cursor = 'default';
+            });
         }
-    };
-
-    const rzp = new Razorpay(options);
-    rzp.open();
-});
-
-function handlePaymentResponse(response, payButton) {
-    const paymentData = {
-        booking_id: <?php echo $booking_id; ?>,
-        payment_id: response.razorpay_payment_id,
-        amount: <?php echo $total; ?>,
-        payment_method: window.paymentDetails.method,
-        user_id: <?php echo $user_id; ?>
-    };
-
-    // Show loading state
-    document.body.style.cursor = 'wait';
-
-    fetch('process_payment.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(paymentData)
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            window.location.href = 'payment_success.php?' + new URLSearchParams({
-                booking_id: paymentData.booking_id,
-                payment_id: paymentData.payment_id,
-                amount: paymentData.amount,
-                status: 'success'
-            }).toString();
-        } else {
-            throw new Error(data.message || 'Payment verification failed');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while processing your payment. Please try again.');
-        
-        // Re-enable the pay button
-        payButton.disabled = false;
-        payButton.innerHTML = '<i class="fas fa-lock"></i> Pay Securely Now';
-    })
-    .finally(() => {
-        document.body.style.cursor = 'default';
-    });
-}
-
-// ... existing code ...
 
         function editAddress() {
             document.getElementById('address-display').style.display = 'none';

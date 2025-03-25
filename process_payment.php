@@ -129,6 +129,12 @@ if (isset($data['action'])) {
                 );
                 $stmt->execute();
 
+                // Clear user's cart after successful payment
+                $cart_query = "DELETE FROM cart WHERE user_id = (SELECT user_id FROM bookings WHERE booking_id = ?)";
+                $stmt = $conn->prepare($cart_query);
+                $stmt->bind_param("i", $data['booking_id']);
+                $stmt->execute();
+
                 // Commit transaction
                 $conn->commit();
 
@@ -191,6 +197,12 @@ if (isset($data['action'])) {
             $data['booking_id'],
             $data['booking_id']
         );
+        $stmt->execute();
+
+        // Clear user's cart after successful payment
+        $cart_query = "DELETE FROM cart WHERE user_id = (SELECT user_id FROM bookings WHERE booking_id = ?)";
+        $stmt = $conn->prepare($cart_query);
+        $stmt->bind_param("i", $data['booking_id']);
         $stmt->execute();
 
         // Commit transaction

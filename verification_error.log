@@ -231,3 +231,196 @@ Stack trace:
     [has_documents] => 
 )
 
+[24-Mar-2025 19:28:34 Europe/Berlin] [2025-03-24 19:28:34] Processing verification for provider ID: 20
+[24-Mar-2025 19:28:34 Europe/Berlin] [2025-03-24 19:28:34] Form data: ID Type: aadhar, ID Number: 123456789012
+[24-Mar-2025 19:28:34 Europe/Berlin] [2025-03-24 19:28:34] ID front image is required. Error code: not set
+[24-Mar-2025 19:28:34 Europe/Berlin] [2025-03-24 19:28:34] ID back image is required. Error code: not set
+[24-Mar-2025 19:28:34 Europe/Berlin] [2025-03-24 19:28:34] Address proof is required. Error code: 0
+[24-Mar-2025 19:28:34 Europe/Berlin] [2025-03-24 19:28:34] Upload failed, redirecting back to dashboard
+[24-Mar-2025 19:31:21 Europe/Berlin] [2025-03-24 19:31:21] Processing verification for provider ID: 20
+[24-Mar-2025 19:31:21 Europe/Berlin] [2025-03-24 19:31:21] Form data: ID Type: aadhar, ID Number: 123456789012
+[24-Mar-2025 19:31:21 Europe/Berlin] [2025-03-24 19:31:21] ID front image is required. Error code: not set
+[24-Mar-2025 19:31:21 Europe/Berlin] [2025-03-24 19:31:21] ID back image is required. Error code: not set
+[24-Mar-2025 19:31:21 Europe/Berlin] [2025-03-24 19:31:21] Address proof is required. Error code: 0
+[24-Mar-2025 19:31:21 Europe/Berlin] [2025-03-24 19:31:21] Upload failed, redirecting back to dashboard
+[24-Mar-2025 19:34:11 Europe/Berlin] [2025-03-24 19:34:11] Processing verification for provider ID: 20
+[24-Mar-2025 19:34:11 Europe/Berlin] [2025-03-24 19:34:11] Form data: ID Type: aadhar, ID Number: 123456789012
+[24-Mar-2025 19:34:11 Europe/Berlin] [2025-03-24 19:34:11] Uploading ID front to: uploads/verification/1742841251_front_aadhar demo.png
+[24-Mar-2025 19:34:11 Europe/Berlin] [2025-03-24 19:34:11] Uploading ID back to: uploads/verification/1742841251_back_aadhar demo.png
+[24-Mar-2025 19:34:11 Europe/Berlin] [2025-03-24 19:34:11] Uploading address proof to: uploads/verification/1742841251_address_aadhar demo.png
+[24-Mar-2025 19:34:11 Europe/Berlin] [2025-03-24 19:34:11] All uploads successful, saving to database
+[24-Mar-2025 19:34:11 Europe/Berlin] PHP Fatal error:  Uncaught mysqli_sql_exception: Unknown column 'id_front_path' in 'field list' in C:\xampp\htdocs\serviceHive\process_verification.php:128
+Stack trace:
+#0 C:\xampp\htdocs\serviceHive\process_verification.php(128): mysqli->prepare('\r\n            I...')
+#1 {main}
+  thrown in C:\xampp\htdocs\serviceHive\process_verification.php on line 128
+[24-Mar-2025 19:34:57 Europe/Berlin] [2025-03-24 19:34:57] Processing verification for provider ID: 20
+[24-Mar-2025 19:34:57 Europe/Berlin] [2025-03-24 19:34:57] Form data: ID Type: aadhar, ID Number: 123456789012
+[24-Mar-2025 19:34:57 Europe/Berlin] [2025-03-24 19:34:57] Uploading ID front to: uploads/verification/1742841297_front_aadhar demo.png
+[24-Mar-2025 19:34:57 Europe/Berlin] [2025-03-24 19:34:57] Uploading ID back to: uploads/verification/1742841297_back_aadhar demo.png
+[24-Mar-2025 19:34:57 Europe/Berlin] [2025-03-24 19:34:57] Uploading address proof to: uploads/verification/1742841297_address_aadhar demo.png
+[24-Mar-2025 19:34:57 Europe/Berlin] [2025-03-24 19:34:57] All uploads successful, saving to database
+[24-Mar-2025 19:34:57 Europe/Berlin] PHP Fatal error:  Uncaught mysqli_sql_exception: Unknown column 'id_front_path' in 'field list' in C:\xampp\htdocs\serviceHive\process_verification.php:149
+Stack trace:
+#0 C:\xampp\htdocs\serviceHive\process_verification.php(149): mysqli->prepare('\r\n            I...')
+#1 {main}
+  thrown in C:\xampp\htdocs\serviceHive\process_verification.php on line 149
+[24-Mar-2025 19:36:01 Europe/Berlin] [2025-03-24 19:36:01] Processing verification for provider ID: 20
+[24-Mar-2025 19:36:01 Europe/Berlin] [2025-03-24 19:36:01] Form data: ID Type: aadhar, ID Number: 123456789012
+[24-Mar-2025 19:36:01 Europe/Berlin] [2025-03-24 19:36:01] Uploading ID front to: uploads/verification/1742841361_front_aadhar demo.png
+[24-Mar-2025 19:36:01 Europe/Berlin] [2025-03-24 19:36:01] Uploading ID back to: uploads/verification/1742841361_back_aadhar demo.png
+[24-Mar-2025 19:36:01 Europe/Berlin] [2025-03-24 19:36:01] Uploading address proof to: uploads/verification/1742841361_address_aadhar demo.png
+[24-Mar-2025 19:36:01 Europe/Berlin] [2025-03-24 19:36:01] All uploads successful, saving to database
+[24-Mar-2025 19:36:01 Europe/Berlin] [2025-03-24 19:36:01] Verification documents saved successfully
+[24-Mar-2025 19:36:29 Europe/Berlin] Verification details for provider 20: Array
+(
+    [provider_id] => 20
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => Arjun
+    [email] => aparnaprasad1109@gmail.com
+    [has_documents] => 1
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [id_proof_front] => uploads/verification/1742841361_front_aadhar demo.png
+    [id_proof_back] => uploads/verification/1742841361_back_aadhar demo.png
+    [address_proof] => uploads/verification/1742841361_address_aadhar demo.png
+    [uploaded_at] => 2025-03-25 00:06:01
+    [id_front_path] => uploads/verification/1742841361_front_aadhar demo.png
+    [id_back_path] => uploads/verification/1742841361_back_aadhar demo.png
+    [address_proof_path] => uploads/verification/1742841361_address_aadhar demo.png
+)
+
+[24-Mar-2025 19:36:34 Europe/Berlin] Updating verification status for provider 20 to approved
+[24-Mar-2025 19:36:34 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=20
+[24-Mar-2025 19:36:34 Europe/Berlin] Affected rows: 1
+[24-Mar-2025 19:43:00 Europe/Berlin] [2025-03-24 19:43:00] Processing verification for provider ID: 21
+[24-Mar-2025 19:43:00 Europe/Berlin] [2025-03-24 19:43:00] Form data: ID Type: aadhar, ID Number: 123456789012
+[24-Mar-2025 19:43:00 Europe/Berlin] [2025-03-24 19:43:00] Uploading ID front to: uploads/verification/1742841780_front_aadhar demo.png
+[24-Mar-2025 19:43:00 Europe/Berlin] [2025-03-24 19:43:00] Uploading ID back to: uploads/verification/1742841780_back_aadhar demo.png
+[24-Mar-2025 19:43:00 Europe/Berlin] [2025-03-24 19:43:00] Uploading address proof to: uploads/verification/1742841780_address_aadhar demo.png
+[24-Mar-2025 19:43:00 Europe/Berlin] [2025-03-24 19:43:00] All uploads successful, saving to database
+[24-Mar-2025 19:43:00 Europe/Berlin] [2025-03-24 19:43:00] Verification documents saved successfully
+[24-Mar-2025 19:46:02 Europe/Berlin] Verification details for provider 21: Array
+(
+    [provider_id] => 21
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => Arjun
+    [email] => aparnaprasad1109@gmail.com
+    [has_documents] => 1
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [id_proof_front] => uploads/verification/1742841780_front_aadhar demo.png
+    [id_proof_back] => uploads/verification/1742841780_back_aadhar demo.png
+    [address_proof] => uploads/verification/1742841780_address_aadhar demo.png
+    [uploaded_at] => 2025-03-25 00:13:00
+    [id_front_path] => uploads/verification/1742841780_front_aadhar demo.png
+    [id_back_path] => uploads/verification/1742841780_back_aadhar demo.png
+    [address_proof_path] => uploads/verification/1742841780_address_aadhar demo.png
+)
+
+[24-Mar-2025 19:46:13 Europe/Berlin] Updating verification status for provider 21 to approved
+[24-Mar-2025 19:46:13 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=21
+[24-Mar-2025 19:46:14 Europe/Berlin] Affected rows: 1
+[24-Mar-2025 19:53:19 Europe/Berlin] [2025-03-24 19:53:19] Processing verification for provider ID: 22
+[24-Mar-2025 19:53:19 Europe/Berlin] [2025-03-24 19:53:19] Form data: ID Type: aadhar, ID Number: 123456789012
+[24-Mar-2025 19:53:19 Europe/Berlin] [2025-03-24 19:53:19] Uploading ID front to: uploads/verification/1742842399_front_aadhar demo.png
+[24-Mar-2025 19:53:19 Europe/Berlin] [2025-03-24 19:53:19] Uploading ID back to: uploads/verification/1742842399_back_aadhar demo.png
+[24-Mar-2025 19:53:19 Europe/Berlin] [2025-03-24 19:53:19] Uploading address proof to: uploads/verification/1742842399_address_aadhar demo.png
+[24-Mar-2025 19:53:19 Europe/Berlin] [2025-03-24 19:53:19] All uploads successful, saving to database
+[24-Mar-2025 19:53:19 Europe/Berlin] [2025-03-24 19:53:19] Verification documents saved successfully
+[24-Mar-2025 19:57:20 Europe/Berlin] Verification details for provider 22: Array
+(
+    [provider_id] => 22
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => Sumith
+    [email] => aparnaprasad1109@gmail.com
+    [has_documents] => 1
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [id_proof_front] => uploads/verification/1742842399_front_aadhar demo.png
+    [id_proof_back] => uploads/verification/1742842399_back_aadhar demo.png
+    [address_proof] => uploads/verification/1742842399_address_aadhar demo.png
+    [uploaded_at] => 2025-03-25 00:23:19
+    [id_front_path] => uploads/verification/1742842399_front_aadhar demo.png
+    [id_back_path] => uploads/verification/1742842399_back_aadhar demo.png
+    [address_proof_path] => uploads/verification/1742842399_address_aadhar demo.png
+)
+
+[24-Mar-2025 19:57:27 Europe/Berlin] Updating verification status for provider 22 to approved
+[24-Mar-2025 19:57:27 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=22
+[24-Mar-2025 19:57:27 Europe/Berlin] Affected rows: 1
+[24-Mar-2025 20:05:53 Europe/Berlin] Error in get_verification_details.php: Provider not found
+[24-Mar-2025 20:06:01 Europe/Berlin] Error in get_verification_details.php: Provider not found
+[24-Mar-2025 20:22:59 Europe/Berlin] Error in get_verification_details.php: Provider not found
+[24-Mar-2025 20:24:32 Europe/Berlin] [2025-03-24 20:24:32] Processing verification for provider ID: 23
+[24-Mar-2025 20:24:32 Europe/Berlin] [2025-03-24 20:24:32] Form data: ID Type: aadhar, ID Number: 123456789012
+[24-Mar-2025 20:24:32 Europe/Berlin] [2025-03-24 20:24:32] Uploading ID front to: uploads/verification/1742844272_front_aadhar demo.png
+[24-Mar-2025 20:24:32 Europe/Berlin] [2025-03-24 20:24:32] Uploading ID back to: uploads/verification/1742844272_back_aadhar demo.png
+[24-Mar-2025 20:24:32 Europe/Berlin] [2025-03-24 20:24:32] Uploading address proof to: uploads/verification/1742844272_address_aadhar demo.png
+[24-Mar-2025 20:24:32 Europe/Berlin] [2025-03-24 20:24:32] All uploads successful, saving to database
+[24-Mar-2025 20:24:32 Europe/Berlin] [2025-03-24 20:24:32] Verification documents saved successfully
+[24-Mar-2025 20:25:13 Europe/Berlin] Verification details for provider 23: Array
+(
+    [provider_id] => 23
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => Sumith
+    [email] => aparnaprasad1109@gmail.com
+    [has_documents] => 1
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [id_proof_front] => uploads/verification/1742844272_front_aadhar demo.png
+    [id_proof_back] => uploads/verification/1742844272_back_aadhar demo.png
+    [address_proof] => uploads/verification/1742844272_address_aadhar demo.png
+    [uploaded_at] => 2025-03-25 00:54:32
+    [id_front_path] => uploads/verification/1742844272_front_aadhar demo.png
+    [id_back_path] => uploads/verification/1742844272_back_aadhar demo.png
+    [address_proof_path] => uploads/verification/1742844272_address_aadhar demo.png
+)
+
+[24-Mar-2025 20:25:17 Europe/Berlin] Updating verification status for provider 23 to approved
+[24-Mar-2025 20:25:17 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=23
+[24-Mar-2025 20:25:17 Europe/Berlin] Affected rows: 1
+[24-Mar-2025 20:49:49 Europe/Berlin] [2025-03-24 20:49:49] Processing verification for provider ID: 24
+[24-Mar-2025 20:49:49 Europe/Berlin] [2025-03-24 20:49:49] Form data: ID Type: aadhar, ID Number: 123456789012
+[24-Mar-2025 20:49:49 Europe/Berlin] [2025-03-24 20:49:49] Uploading ID front to: uploads/verification/1742845789_front_aadhar demo.png
+[24-Mar-2025 20:49:49 Europe/Berlin] [2025-03-24 20:49:49] Uploading ID back to: uploads/verification/1742845789_back_aadhar demo.png
+[24-Mar-2025 20:49:49 Europe/Berlin] [2025-03-24 20:49:49] Uploading address proof to: uploads/verification/1742845789_address_aadhar demo.png
+[24-Mar-2025 20:49:49 Europe/Berlin] [2025-03-24 20:49:49] All uploads successful, saving to database
+[24-Mar-2025 20:49:49 Europe/Berlin] [2025-03-24 20:49:49] Verification documents saved successfully
+[24-Mar-2025 20:50:08 Europe/Berlin] Verification details for provider 24: Array
+(
+    [provider_id] => 24
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => Sumith
+    [email] => aparnaprasad1109@gmail.com
+    [has_documents] => 1
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [id_proof_front] => uploads/verification/1742845789_front_aadhar demo.png
+    [id_proof_back] => uploads/verification/1742845789_back_aadhar demo.png
+    [address_proof] => uploads/verification/1742845789_address_aadhar demo.png
+    [uploaded_at] => 2025-03-25 01:19:49
+    [id_front_path] => uploads/verification/1742845789_front_aadhar demo.png
+    [id_back_path] => uploads/verification/1742845789_back_aadhar demo.png
+    [address_proof_path] => uploads/verification/1742845789_address_aadhar demo.png
+)
+
+[24-Mar-2025 20:50:14 Europe/Berlin] Updating verification status for provider 24 to approved
+[24-Mar-2025 20:50:14 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=24
+[24-Mar-2025 20:50:14 Europe/Berlin] Affected rows: 1
+[24-Mar-2025 20:53:30 Europe/Berlin] Error in get_verification_details.php: Provider not found
+[25-Mar-2025 05:55:34 Europe/Berlin] [2025-03-25 05:55:34] Unauthorized access attempt: User ID: 3, Role: user
+[25-Mar-2025 05:55:34 Europe/Berlin] [2025-03-25 05:55:34] Unauthorized access attempt: User ID: 3, Role: user
+[25-Mar-2025 05:55:34 Europe/Berlin] [2025-03-25 05:55:34] Unauthorized access attempt: User ID: 3, Role: user
+[25-Mar-2025 05:55:34 Europe/Berlin] [2025-03-25 05:55:34] Unauthorized access attempt: User ID: 3, Role: user
+[25-Mar-2025 05:55:45 Europe/Berlin] [2025-03-25 05:55:45] Unauthorized access attempt: User ID: 3, Role: user

@@ -57,10 +57,34 @@ if (isset($provider_id)) {
     $stmt->execute();
     $doc_result = $stmt->get_result();
     $documents_submitted = $doc_result->num_rows > 0;
+    
+    // Debug logging to track the issue
+    error_log("Documents check: provider_id=$provider_id, documents_submitted=$documents_submitted");
+}
+
+// Check for verification submission in session
+$verification_submitted = isset($_SESSION['verification_submitted']) && $_SESSION['verification_submitted'] === true;
+if ($verification_submitted) {
+    // Clear the flag
+    unset($_SESSION['verification_submitted']);
+    // Force documents_submitted to true to show the pending message
+    $documents_submitted = true;
+    $verification_status = 'pending';
+    
+    // Debug logging
+    error_log("Verification submission detected in session: setting documents_submitted=true");
 }
 
 // Show verification popup only if documents are not uploaded and not verified
 $show_verification_popup = !$documents_submitted && !$is_verified;
+
+// Add an additional check to ensure verification form isn't shown after submission
+if (isset($_SESSION['verification_just_submitted']) && $_SESSION['verification_just_submitted'] === true) {
+    $show_verification_popup = false;
+    $documents_submitted = true;
+    unset($_SESSION['verification_just_submitted']);
+    error_log("Just submitted flag detected: hiding verification form");
+}
 
 // Debug logging
 error_log("Verification status: is_verified=$is_verified, documents_submitted=$documents_submitted, show_popup=$show_verification_popup");
@@ -75,6 +99,9 @@ $stmt->bind_param("i", $provider_id);
 $stmt->execute();
 $pending_count = $stmt->get_result()->fetch_assoc()['pending_count'];
 
+// Store count of bookings that will be auto-approved
+$auto_approved_count = $pending_count;
+
 // Automatically approve new bookings
 $stmt = $conn->prepare("
     UPDATE bookings 
@@ -83,6 +110,9 @@ $stmt = $conn->prepare("
 ");
 $stmt->bind_param("i", $provider_id);
 $stmt->execute();
+
+// Check if any bookings were auto-approved
+$auto_approved = $auto_approved_count > 0 ? true : false;
 
 // Get today's bookings
 $today = date('Y-m-d');
@@ -99,18 +129,53 @@ $stmt->execute();
 $today_bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // Get rating statistics
+try {
+    $stmt = $conn->prepare("
+        SELECT AVG(rating) as avg_rating, COUNT(*) as total_reviews
+        FROM reviews
+        WHERE provider_id = ?
+    ");
+    $stmt->bind_param("i", $provider_id);
+    $stmt->execute();
+    $ratings = $stmt->get_result()->fetch_assoc();
+    
+    // Set values from query results
+    $avg_rating = $ratings['avg_rating'] ?? 0;
+    $total_reviews = $ratings['total_reviews'] ?? 0;
+} catch (mysqli_sql_exception $e) {
+    // Handle the error - table doesn't exist
+    error_log("Reviews table doesn't exist: " . $e->getMessage());
+    // Set default values
+    $avg_rating = 0;
+    $total_reviews = 0;
+}
+
+// Get count of pending reviews
 $stmt = $conn->prepare("
-    SELECT AVG(rating) as avg_rating, COUNT(*) as total_reviews
+    SELECT COUNT(*) as pending_reviews
     FROM reviews
-    WHERE provider_id = ?
+    WHERE provider_id = ? AND (status IS NULL OR status = 'pending')
 ");
 $stmt->bind_param("i", $provider_id);
 $stmt->execute();
-$ratings = $stmt->get_result()->fetch_assoc();
+$pending_reviews_result = $stmt->get_result()->fetch_assoc();
+$pending_reviews_count = $pending_reviews_result['pending_reviews'] ?? 0;
 
-// Set default values if no ratings exist
-$avg_rating = $ratings['avg_rating'] ?? 0;
-$total_reviews = $ratings['total_reviews'] ?? 0;
+// Get recent reviews (limit to 2)
+$stmt = $conn->prepare("
+    SELECT r.*, u.username, b.booking_date, r.status,
+           s.service_name
+    FROM reviews r
+    JOIN bookings b ON r.booking_id = b.booking_id
+    JOIN users u ON r.user_id = u.id  
+    JOIN tbl_services s ON b.service_id = s.service_id
+    WHERE r.provider_id = ?
+    ORDER BY b.booking_date DESC
+    LIMIT 2
+");
+$stmt->bind_param("i", $provider_id);
+$stmt->execute();
+$recent_reviews = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // Fetch unread notifications for the user
 $stmt = $conn->prepare("
@@ -124,23 +189,12 @@ $stmt->execute();
 $notifications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $notification_count = count($notifications);
 
-// Check for verification submission
-$verification_submitted = isset($_SESSION['verification_submitted']) && $_SESSION['verification_submitted'] === true;
-if ($verification_submitted) {
-    // Clear the flag
-    unset($_SESSION['verification_submitted']);
-    // Force documents_submitted to true to show the pending message
-    $documents_submitted = true;
-    $verification_status = 'pending';
-}
-
 // Check for verification error
 $verification_error = isset($_SESSION['verification_error']) ? $_SESSION['verification_error'] : '';
 if (!empty($verification_error)) {
     // Clear the error
     unset($_SESSION['verification_error']);
 }
-<<<<<<< HEAD
 
 // Get all bookings for the provider
 $stmt = $conn->prepare("
@@ -175,8 +229,6 @@ $stmt = $conn->prepare($counts_query);
 $stmt->bind_param("i", $provider_id);
 $stmt->execute();
 $counts = $stmt->get_result()->fetch_assoc();
-=======
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
 ?>
 
 <!DOCTYPE html>
@@ -574,75 +626,6 @@ $counts = $stmt->get_result()->fetch_assoc();
             z-index: 1000;
         }
 
-<<<<<<< HEAD
-=======
-        .status-rejected {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-
-        /* Verification banner styles */
-        .verification-banner {
-            background-color: #ff7f50;
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-        }
-
-        .verification-banner i {
-            font-size: 24px;
-            margin-right: 15px;
-        }
-
-        .verification-banner.pending {
-            background-color: #ff7f50;
-        }
-
-        .verification-banner.approved {
-            background-color: #4CAF50;
-        }
-
-        .verification-banner.rejected {
-            background-color: #f44336;
-        }
-
-        .verification-details {
-            background-color: #fff9e6;
-            border-left: 4px solid #ffc107;
-            padding: 20px;
-            margin-bottom: 20px;
-            border-radius: 0 8px 8px 0;
-        }
-
-        .verification-details h3 {
-            color: #856404;
-            margin-bottom: 10px;
-        }
-
-        .verification-details p {
-            color: #666;
-            margin-bottom: 10px;
-        }
-
-        /* Popup styles */
-        .verification-popup {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(8px);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
         .popup-content {
             background: white;
             padding: 2rem;
@@ -867,7 +850,6 @@ $counts = $stmt->get_result()->fetch_assoc();
         
         .verification-pending-message {
             overflow: hidden;
-<<<<<<< HEAD
         }
 
         .dashboard-stats {
@@ -943,8 +925,28 @@ $counts = $stmt->get_result()->fetch_assoc();
             .dashboard-stats {
                 grid-template-columns: 1fr;
             }
-=======
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
+        }
+
+        /* Add this to your existing styles */
+        .nav-links li a .badge {
+            background-color: #ee6e06;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 12px;
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .nav-links li a {
+            position: relative;
+        }
+
+        /* Highlight the reviews link when there are pending reviews */
+        .nav-links li a:has(.badge) {
+            font-weight: 500;
         }
     </style>
 </head>
@@ -960,7 +962,7 @@ $counts = $stmt->get_result()->fetch_assoc();
                 <li><a href="#"><i class="fas fa-calendar"></i> Bookings</a></li>
                 <li><a href="service-management.php"><i class="fas fa-tools"></i> Services</a></li>
                 <li><a href="subservice-management.php"><i class="fas fa-tools"></i> Sub Services</a></li>
-                <li><a href="#"><i class="fas fa-star"></i> Reviews</a></li>
+                <li><a href="provider-review.php"><i class="fas fa-star"></i> Reviews</a></li>
                 <li><a href="profile.php"><i class="fas fa-user"></i> Profile</a></li>
                 <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
@@ -1003,6 +1005,14 @@ $counts = $stmt->get_result()->fetch_assoc();
                 </div>
             </div>
 
+            <!-- Auto-approval notification -->
+            <?php if ($auto_approved): ?>
+            <div class="auto-approval-alert" style="background-color: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #28a745;">
+                <h3 style="margin-top: 0;"><i class="fas fa-check-circle"></i> Bookings Auto-Approved</h3>
+                <p style="margin-bottom: 0;"><?php echo $auto_approved_count; ?> new booking<?php echo $auto_approved_count > 1 ? 's have' : ' has'; ?> been automatically approved. You can view the details in the bookings section below.</p>
+            </div>
+            <?php endif; ?>
+
             <!-- Verification error message -->
             <?php if (!empty($verification_error)): ?>
             <div class="alert alert-danger">
@@ -1015,7 +1025,6 @@ $counts = $stmt->get_result()->fetch_assoc();
             <div class="verification-pending-container">
                 <div class="verification-pending-header">
                     <i class="fas fa-user-check"></i> Verification Pending
-<<<<<<< HEAD
                 </div>
                 <div class="verification-pending-content">
                     <div class="verification-pending-icon">
@@ -1033,53 +1042,6 @@ $counts = $stmt->get_result()->fetch_assoc();
                             This usually takes 1-2 business days. We'll notify you once your account is approved.
                         </p>
                     </div>
-=======
-                </div>
-                <div class="verification-pending-content">
-                    <div class="verification-pending-icon">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                    <div class="verification-pending-message">
-                        <div class="verification-pending-title">Your documents are under review</div>
-                        <p class="verification-pending-text">
-                            <strong>Thank you for submitting your verification documents.</strong> Our team is currently reviewing your information to ensure everything meets our platform standards.
-                        </p>
-                        <p class="verification-pending-text">
-                            Your account verification is pending admin approval. You'll have limited access until your documents are verified.
-                        </p>
-                        <p class="verification-pending-text">
-                            This usually takes 1-2 business days. We'll notify you once your account is approved.
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
-
-            <!-- Notification for approval -->
-            <?php if (isset($_SESSION['verification_status']) && $_SESSION['verification_status'] === 'success'): ?>
-                <div class="notification">
-                    <?php echo $_SESSION['verification_message']; ?>
-                </div>
-                <?php unset($_SESSION['verification_status'], $_SESSION['verification_message']); ?>
-            <?php endif; ?>
-
-            <div class="stats-container">
-                <div class="stat-card">
-                    <h3>Today's Bookings</h3>
-                    <div class="value"><?php echo count($today_bookings); ?></div>
-                </div>
-                <div class="stat-card">
-                    <h3>Average Rating</h3>
-                    <div class="value"><?php echo number_format($avg_rating, 1); ?> ⭐</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Total Reviews</h3>
-                    <div class="value"><?php echo $total_reviews; ?></div>
-                </div>
-                <div class="stat-card">
-                    <h3>Pending Requests</h3>
-                    <div class="value"><?php echo $pending_count; ?></div>
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
                 </div>
             </div>
             <?php endif; ?>
@@ -1134,32 +1096,7 @@ $counts = $stmt->get_result()->fetch_assoc();
                 </div>
             </div>
 
-            <?php if (!$is_verified): ?>
-            <div class="verification-banner" style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #ffc107;">
-                <h3 style="color: #856404; margin-top: 0;"><i class="fas fa-exclamation-triangle"></i> Verification Pending</h3>
-                <?php if ($documents_submitted): ?>
-                <p style="color: #856404; margin-bottom: 0;">Your documents are under review. We'll notify you once the verification is complete.</p>
-                <?php else: ?>
-                <p style="color: #856404; margin-bottom: 10px;">Please complete your verification to access all features.</p>
-                <button id="showVerificationBtn" style="background-color: #ffc107; border: none; color: #856404; padding: 8px 15px; border-radius: 4px; cursor: pointer;">Complete Verification</button>
-                <?php endif; ?>
-            </div>
-            <?php endif; ?>
-
-            <?php if (!$is_verified): ?>
-            <div class="verification-banner" style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #ffc107;">
-                <h3 style="color: #856404; margin-top: 0;"><i class="fas fa-exclamation-triangle"></i> Verification Pending</h3>
-                <?php if ($documents_submitted): ?>
-                <p style="color: #856404; margin-bottom: 0;">Your documents are under review. We'll notify you once the verification is complete.</p>
-                <?php else: ?>
-                <p style="color: #856404; margin-bottom: 10px;">Please complete your verification to access all features.</p>
-                <button id="showVerificationBtn" style="background-color: #ffc107; border: none; color: #856404; padding: 8px 15px; border-radius: 4px; cursor: pointer;">Complete Verification</button>
-                <?php endif; ?>
-            </div>
-            <?php endif; ?>
-
             <div class="bookings-container">
-<<<<<<< HEAD
                 <h2><i class="fas fa-calendar-check"></i> All Bookings</h2>
                 
                 <?php if (empty($bookings)): ?>
@@ -1239,46 +1176,6 @@ $counts = $stmt->get_result()->fetch_assoc();
                         </table>
                     </div>
                 <?php endif; ?>
-=======
-                <h2>Today's Bookings</h2>
-                <table class="booking-table">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Customer</th>
-                            <th>Service</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (count($today_bookings) > 0): ?>
-                            <?php foreach ($today_bookings as $booking): ?>
-                                <tr>
-                                    <td><?php echo date('H:i', strtotime($booking['booking_time'])); ?></td>
-                                    <td><?php echo htmlspecialchars($booking['username']); ?></td>
-                                    <td><?php echo htmlspecialchars($booking['service_name']); ?></td>
-                                    <td>
-                                        <span class="status-badge status-<?php echo $booking['status']; ?>">
-                                            <?php echo ucfirst($booking['status']); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <?php if ($booking['status'] === 'pending'): ?>
-                                            <button onclick="updateBooking(<?php echo $booking['booking_id']; ?>, 'accepted')" class="accept-btn">Accept</button>
-                                            <button onclick="updateBooking(<?php echo $booking['booking_id']; ?>, 'rejected')" class="reject-btn">Reject</button>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <tr>
-                                <td colspan="5" style="text-align: center;">No bookings for today</td>
-                            </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
             </div>
         </div>
     </div>
@@ -1385,13 +1282,46 @@ $counts = $stmt->get_result()->fetch_assoc();
             }
         }
 
-<<<<<<< HEAD
         function viewBookingDetails(bookingId) {
             window.location.href = 'booking_details.php?id=' + bookingId;
         }
 
-=======
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
+        function approveReview(reviewId) {
+            if (confirm('Are you sure you want to approve this review? It will be publicly visible.')) {
+                updateReviewStatus(reviewId, 'approved');
+            }
+        }
+        
+        function rejectReview(reviewId) {
+            if (confirm('Are you sure you want to reject this review?')) {
+                updateReviewStatus(reviewId, 'rejected');
+            }
+        }
+        
+        function updateReviewStatus(reviewId, status) {
+            const formData = new FormData();
+            formData.append('review_id', reviewId);
+            formData.append('status', status);
+            
+            fetch('update_review_status.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Review ' + status + ' successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to update review status'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating review status. Please try again.');
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const verificationPopup = document.getElementById('verificationPopup');
             const showVerificationBtn = document.getElementById('showVerificationBtn');

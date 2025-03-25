@@ -1,0 +1,82 @@
+[24-Mar-2025 21:24:06 Europe/Berlin] 2025-03-24 21:24:06 - Payment request received
+[24-Mar-2025 21:24:06 Europe/Berlin] 2025-03-24 21:24:06 - Raw input data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-04-05","visit_time":"09:00","visit_address":"","visit_notes":""}}
+[24-Mar-2025 21:24:06 Europe/Berlin] 2025-03-24 21:24:06 - Decoded data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-04-05","visit_time":"09:00","visit_address":"","visit_notes":""}}
+[24-Mar-2025 21:24:06 Europe/Berlin] 2025-03-24 21:24:06 - Session data - {"user_id":3,"user_name":"Archana","user_email":"rajiprasad7588@gmail.com","user_phone":null}
+[24-Mar-2025 21:24:06 Europe/Berlin] 2025-03-24 21:24:06 - Booking reference generated - VIS-BD8FCE7D
+[24-Mar-2025 21:24:06 Europe/Berlin] 2025-03-24 21:24:06 - Processing booking type - visit
+[24-Mar-2025 21:24:06 Europe/Berlin] 2025-03-24 21:24:06 - Visit booking data - {"category_id":"4","visit_date":"2025-04-05","visit_time":"09:00","visit_address":""}
+[24-Mar-2025 21:24:06 Europe/Berlin] 2025-03-24 21:24:06 - Missing visit_address
+[24-Mar-2025 21:24:06 Europe/Berlin] 2025-03-24 21:24:06 - Exception caught - Missing visit address
+[24-Mar-2025 21:24:15 Europe/Berlin] 2025-03-24 21:24:15 - Payment request received
+[24-Mar-2025 21:24:15 Europe/Berlin] 2025-03-24 21:24:15 - Raw input data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-04-05","visit_time":"09:00","visit_address":"ghjkl","visit_notes":""}}
+[24-Mar-2025 21:24:15 Europe/Berlin] 2025-03-24 21:24:15 - Decoded data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-04-05","visit_time":"09:00","visit_address":"ghjkl","visit_notes":""}}
+[24-Mar-2025 21:24:15 Europe/Berlin] 2025-03-24 21:24:15 - Session data - {"user_id":3,"user_name":"Archana","user_email":"rajiprasad7588@gmail.com","user_phone":null}
+[24-Mar-2025 21:24:15 Europe/Berlin] 2025-03-24 21:24:15 - Booking reference generated - VIS-845C3DF0
+[24-Mar-2025 21:24:15 Europe/Berlin] 2025-03-24 21:24:15 - Processing booking type - visit
+[24-Mar-2025 21:24:15 Europe/Berlin] 2025-03-24 21:24:15 - Visit booking data - {"category_id":"4","visit_date":"2025-04-05","visit_time":"09:00","visit_address":"ghjkl"}
+[24-Mar-2025 21:24:15 Europe/Berlin] 2025-03-24 21:24:15 - Preparing to insert visit booking
+[24-Mar-2025 21:24:15 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\serviceHive\create_order.php:122
+Stack trace:
+#0 C:\xampp\htdocs\serviceHive\create_order.php(122): mysqli_stmt->bind_param('iissssi', 3, '4', '2025-04-05', '09:00', 'ghjkl', '', 'VIS-845C3DF0', 19900)
+#1 {main}
+  thrown in C:\xampp\htdocs\serviceHive\create_order.php on line 122
+[24-Mar-2025 21:31:11 Europe/Berlin] 2025-03-24 21:31:11 - Payment request received
+[24-Mar-2025 21:31:11 Europe/Berlin] 2025-03-24 21:31:11 - Raw input data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"","visit_time":"09:00","visit_address":"","visit_notes":""}}
+[24-Mar-2025 21:31:11 Europe/Berlin] 2025-03-24 21:31:11 - Decoded data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"","visit_time":"09:00","visit_address":"","visit_notes":""}}
+[24-Mar-2025 21:31:11 Europe/Berlin] 2025-03-24 21:31:11 - Session data - {"user_id":3,"user_name":"Archana","user_email":"rajiprasad7588@gmail.com","user_phone":null}
+[24-Mar-2025 21:31:11 Europe/Berlin] 2025-03-24 21:31:11 - Booking reference generated - VIS-C7ED1E17
+[24-Mar-2025 21:31:11 Europe/Berlin] 2025-03-24 21:31:11 - Processing booking type - visit
+[24-Mar-2025 21:31:11 Europe/Berlin] 2025-03-24 21:31:11 - Visit booking data - {"category_id":4,"visit_date":"","visit_time":"09:00","visit_address":""}
+[24-Mar-2025 21:31:11 Europe/Berlin] 2025-03-24 21:31:11 - Missing visit_date
+[24-Mar-2025 21:31:21 Europe/Berlin] 2025-03-24 21:31:21 - Payment request received
+[24-Mar-2025 21:31:21 Europe/Berlin] 2025-03-24 21:31:21 - Raw input data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-03-27","visit_time":"09:00","visit_address":"fcghjk","visit_notes":""}}
+[24-Mar-2025 21:31:21 Europe/Berlin] 2025-03-24 21:31:21 - Decoded data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-03-27","visit_time":"09:00","visit_address":"fcghjk","visit_notes":""}}
+[24-Mar-2025 21:31:21 Europe/Berlin] 2025-03-24 21:31:21 - Session data - {"user_id":3,"user_name":"Archana","user_email":"rajiprasad7588@gmail.com","user_phone":null}
+[24-Mar-2025 21:31:21 Europe/Berlin] 2025-03-24 21:31:21 - Booking reference generated - VIS-EFEBA27F
+[24-Mar-2025 21:31:21 Europe/Berlin] 2025-03-24 21:31:21 - Processing booking type - visit
+[24-Mar-2025 21:31:21 Europe/Berlin] 2025-03-24 21:31:21 - Visit booking data - {"category_id":4,"visit_date":"2025-03-27","visit_time":"09:00","visit_address":"fcghjk"}
+[24-Mar-2025 21:31:21 Europe/Berlin] 2025-03-24 21:31:21 - Preparing to insert visit booking
+[24-Mar-2025 21:31:21 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\serviceHive\create_order.php:159
+Stack trace:
+#0 C:\xampp\htdocs\serviceHive\create_order.php(159): mysqli_stmt->bind_param('iissssi', 3, 4, '2025-03-27', '09:00', 'fcghjk', '', 'VIS-EFEBA27F', 19900)
+#1 {main}
+  thrown in C:\xampp\htdocs\serviceHive\create_order.php on line 159
+[24-Mar-2025 21:34:30 Europe/Berlin] 2025-03-24 21:34:30 - Payment request received
+[24-Mar-2025 21:34:30 Europe/Berlin] 2025-03-24 21:34:30 - Raw input data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-03-29","visit_time":"09:00","visit_address":"vbn","visit_notes":""}}
+[24-Mar-2025 21:34:30 Europe/Berlin] 2025-03-24 21:34:30 - Decoded data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-03-29","visit_time":"09:00","visit_address":"vbn","visit_notes":""}}
+[24-Mar-2025 21:34:30 Europe/Berlin] 2025-03-24 21:34:30 - Session data - {"user_id":3,"user_name":"Archana","user_email":"rajiprasad7588@gmail.com","user_phone":null}
+[24-Mar-2025 21:34:30 Europe/Berlin] 2025-03-24 21:34:30 - Booking reference generated - VIS-765F18F7
+[24-Mar-2025 21:34:30 Europe/Berlin] 2025-03-24 21:34:30 - Processing booking type - visit
+[24-Mar-2025 21:34:30 Europe/Berlin] 2025-03-24 21:34:30 - Visit booking data - {"category_id":4,"visit_date":"2025-03-29","visit_time":"09:00","visit_address":"vbn"}
+[24-Mar-2025 21:34:30 Europe/Berlin] 2025-03-24 21:34:30 - Preparing to insert visit booking
+[24-Mar-2025 21:34:30 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\serviceHive\create_order.php:159
+Stack trace:
+#0 C:\xampp\htdocs\serviceHive\create_order.php(159): mysqli_stmt->bind_param('iissssi', 3, 4, '2025-03-29', '09:00', 'vbn', '', 'VIS-765F18F7', 19900)
+#1 {main}
+  thrown in C:\xampp\htdocs\serviceHive\create_order.php on line 159
+[24-Mar-2025 21:37:30 Europe/Berlin] 2025-03-24 21:37:30 - Payment request received
+[24-Mar-2025 21:37:30 Europe/Berlin] 2025-03-24 21:37:30 - Raw input data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-03-29","visit_time":"09:00","visit_address":"hyjk","visit_notes":""}}
+[24-Mar-2025 21:37:30 Europe/Berlin] 2025-03-24 21:37:30 - Decoded data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-03-29","visit_time":"09:00","visit_address":"hyjk","visit_notes":""}}
+[24-Mar-2025 21:37:30 Europe/Berlin] 2025-03-24 21:37:30 - Session data - {"user_id":3,"user_name":"Archana","user_email":"rajiprasad7588@gmail.com","user_phone":null}
+[24-Mar-2025 21:37:30 Europe/Berlin] 2025-03-24 21:37:30 - Booking reference generated - VIS-7B3EEEAD
+[24-Mar-2025 21:37:30 Europe/Berlin] 2025-03-24 21:37:30 - Processing booking type - visit
+[24-Mar-2025 21:37:30 Europe/Berlin] 2025-03-24 21:37:30 - Visit booking data - {"category_id":4,"visit_date":"2025-03-29","visit_time":"09:00","visit_address":"hyjk"}
+[24-Mar-2025 21:37:30 Europe/Berlin] 2025-03-24 21:37:30 - Preparing to insert visit booking
+[24-Mar-2025 21:37:30 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\serviceHive\create_order.php:159
+Stack trace:
+#0 C:\xampp\htdocs\serviceHive\create_order.php(159): mysqli_stmt->bind_param('iissssi', 3, 4, '2025-03-29', '09:00', 'hyjk', '', 'VIS-7B3EEEAD', 19900)
+#1 {main}
+  thrown in C:\xampp\htdocs\serviceHive\create_order.php on line 159
+[24-Mar-2025 21:57:30 Europe/Berlin] 2025-03-24 21:57:30 - Payment request received
+[24-Mar-2025 21:57:30 Europe/Berlin] 2025-03-24 21:57:30 - Raw input data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-04-05","visit_time":"09:00","visit_address":"jkl","visit_notes":""}}
+[24-Mar-2025 21:57:30 Europe/Berlin] 2025-03-24 21:57:30 - Decoded data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"4","visit_date":"2025-04-05","visit_time":"09:00","visit_address":"jkl","visit_notes":""}}
+[24-Mar-2025 21:57:30 Europe/Berlin] 2025-03-24 21:57:30 - Session data - {"user_id":3,"user_name":"Archana","user_email":"rajiprasad7588@gmail.com","user_phone":null}
+[24-Mar-2025 21:57:30 Europe/Berlin] 2025-03-24 21:57:30 - Booking reference generated - VIS-CC576CD7
+[24-Mar-2025 21:57:30 Europe/Berlin] 2025-03-24 21:57:30 - Processing booking type - visit
+[24-Mar-2025 21:57:30 Europe/Berlin] 2025-03-24 21:57:30 - Visit booking data - {"category_id":4,"visit_date":"2025-04-05","visit_time":"09:00","visit_address":"jkl"}
+[24-Mar-2025 21:57:30 Europe/Berlin] 2025-03-24 21:57:30 - Preparing to insert visit booking
+[24-Mar-2025 21:57:30 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\serviceHive\create_order.php:159
+Stack trace:
+#0 C:\xampp\htdocs\serviceHive\create_order.php(159): mysqli_stmt->bind_param('iissssi', 3, 4, '2025-04-05', '09:00', 'jkl', '', 'VIS-CC576CD7', 19900)
+#1 {main}
+  thrown in C:\xampp\htdocs\serviceHive\create_order.php on line 159

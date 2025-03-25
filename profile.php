@@ -803,28 +803,9 @@ if (!$verification_data) {
             <div class="verification-section">
                 <h2 class="section-title">Verification Details</h2>
                 
-<<<<<<< HEAD
                 <div class="verification-status">
                     <div class="status-badge <?php echo ($verification_data['verified_status'] ?? 0) ? 'verified' : 'unverified'; ?>">
                         <?php echo ($verification_data['verified_status'] ?? 0) ? 'Verified' : 'Unverified'; ?>
-=======
-                <?php
-                // Check verification status
-                $stmt = $conn->prepare("
-                    SELECT sp.verified_status, v.documents_uploaded, sp.id_type, sp.id_number 
-                    FROM service_providers sp
-                    LEFT JOIN verification_status v ON v.provider_id = sp.provider_id
-                    WHERE sp.user_id = ?
-                ");
-                $stmt->bind_param("i", $_SESSION['user_id']);
-                $stmt->execute();
-                $verification_data = $stmt->get_result()->fetch_assoc();
-                ?>
-
-                <div class="verification-status">
-                    <div class="status-badge <?php echo $verification_data['verified_status'] ? 'verified' : 'unverified'; ?>">
-                        <?php echo $verification_data['verified_status'] ? 'Verified' : 'Unverified'; ?>
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
                     </div>
                 </div>
 
@@ -832,21 +813,12 @@ if (!$verification_data) {
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="id_type">ID Type*</label>
-<<<<<<< HEAD
                             <select name="id_type" id="id_type" <?php echo ($verification_data['verified_status'] ?? 0) ? 'disabled' : ''; ?>>
                                 <option value="">Select ID Type</option>
                                 <option value="aadhar" <?php echo ($verification_data['id_type'] ?? '') == 'aadhar' ? 'selected' : ''; ?>>Aadhar Card</option>
                                 <option value="pan" <?php echo ($verification_data['id_type'] ?? '') == 'pan' ? 'selected' : ''; ?>>PAN Card</option>
                                 <option value="voter" <?php echo ($verification_data['id_type'] ?? '') == 'voter' ? 'selected' : ''; ?>>Voter ID</option>
                                 <option value="driving" <?php echo ($verification_data['id_type'] ?? '') == 'driving' ? 'selected' : ''; ?>>Driving License</option>
-=======
-                            <select name="id_type" id="id_type" <?php echo $verification_data['verified_status'] ? 'disabled' : ''; ?>>
-                                <option value="">Select ID Type</option>
-                                <option value="aadhar" <?php echo ($verification_data['id_type'] == 'aadhar') ? 'selected' : ''; ?>>Aadhar Card</option>
-                                <option value="pan" <?php echo ($verification_data['id_type'] == 'pan') ? 'selected' : ''; ?>>PAN Card</option>
-                                <option value="voter" <?php echo ($verification_data['id_type'] == 'voter') ? 'selected' : ''; ?>>Voter ID</option>
-                                <option value="driving" <?php echo ($verification_data['id_type'] == 'driving') ? 'selected' : ''; ?>>Driving License</option>
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
                             </select>
                             <div class="feedback"></div>
                         </div>
@@ -855,11 +827,7 @@ if (!$verification_data) {
                             <label for="id_number">ID Number*</label>
                             <input type="text" id="id_number" name="id_number" 
                                    value="<?php echo htmlspecialchars($verification_data['id_number'] ?? ''); ?>"
-<<<<<<< HEAD
                                    <?php echo ($verification_data['verified_status'] ?? 0) ? 'disabled' : ''; ?>>
-=======
-                                   <?php echo $verification_data['verified_status'] ? 'disabled' : ''; ?>>
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
                             <small class="id-format-hint"></small>
                             <div class="feedback"></div>
                         </div>
@@ -886,11 +854,7 @@ if (!$verification_data) {
                         </div>
                     </div>
 
-<<<<<<< HEAD
                     <?php if (!($verification_data['verified_status'] ?? 0)): ?>
-=======
-                    <?php if (!$verification_data['verified_status']): ?>
->>>>>>> c1f9cd25c0f9a1e185e0bae636b4d327ccfd1232
                         <div class="terms-group">
                             <input type="checkbox" id="terms" name="terms" required>
                             <label for="terms">I agree to the verification terms and conditions</label>
