@@ -9,8 +9,10 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 // Database connection
 require_once 'dbconnect.php';
 
-// Include PHPMailer classes
-
+// Include PHPMailer classes directly
+ require 'PHPMailer-master/src/Exception.php';
+    require 'PHPMailer-master/src/PHPMailer.php';
+    require 'PHPMailer-master/src/SMTP.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -242,9 +244,8 @@ function approveServiceProvider($db, $id) {
         $stmt4->bind_param("i", $id);
         $stmt4->execute();
         
-        // Try to send a simple mail notification
+        // Send email notification using PHPMailer
         if (!empty($user['email'])) {
-            $to = $user['email'];
             $subject = "Your ServiceHive Account Has Been Approved";
             $message = "Dear " . htmlspecialchars($user['username']) . ",\n\n";
             $message .= "Congratulations! Your ServiceHive account has been approved by our administration team.\n\n";
@@ -252,11 +253,8 @@ function approveServiceProvider($db, $id) {
             $message .= "Thank you for joining ServiceHive!\n\n";
             $message .= "Best regards,\nThe ServiceHive Team";
             
-            $headers = "From: noreply@servicehive.com\r\n";
-            $headers .= "Reply-To: support@servicehive.com\r\n";
-            
-            // We're just attempting to send email, but not making it critical
-            @mail($to, $subject, $message, $headers);
+            // Use the helper function to send email
+            sendServiceHiveEmail($user['email'], $user['username'], $subject, $message);
         }
         
         $db->commit();
@@ -310,9 +308,8 @@ function rejectServiceProvider($db, $id) {
         $stmt4->bind_param("i", $id);
         $stmt4->execute();
 
-        // Try to send a simple mail notification
+        // Send email notification using PHPMailer
         if (!empty($user['email'])) {
-            $to = $user['email'];
             $subject = "Your ServiceHive Application Status";
             $message = "Dear " . htmlspecialchars($user['username']) . ",\n\n";
             $message .= "We regret to inform you that your ServiceHive service provider application has been rejected.\n\n";
@@ -320,11 +317,8 @@ function rejectServiceProvider($db, $id) {
             $message .= "You may reapply after addressing any issues with your application.\n\n";
             $message .= "Best regards,\nThe ServiceHive Team";
             
-            $headers = "From: noreply@servicehive.com\r\n";
-            $headers .= "Reply-To: support@servicehive.com\r\n";
-            
-            // We're just attempting to send email, but not making it critical
-            @mail($to, $subject, $message, $headers);
+            // Use the helper function to send email
+            sendServiceHiveEmail($user['email'], $user['username'], $subject, $message);
         }
 
         $db->commit();

@@ -27,6 +27,10 @@ function debug_log($message, $data = null) {
 
 // Helper function to return JSON response
 function return_json($success, $message, $data = []) {
+    file_put_contents('debug.log', "About to send response: " . json_encode(array_merge(
+        ['success' => $success, 'message' => $message],
+        $data
+    )) . "\n", FILE_APPEND);
     echo json_encode(array_merge(
         ['success' => $success, 'message' => $message],
         $data
@@ -35,6 +39,8 @@ function return_json($success, $message, $data = []) {
 }
 
 try {
+    file_put_contents('debug.log', "Request received: " . file_get_contents('php://input') . "\n", FILE_APPEND);
+
     debug_log('Payment request received');
 
     // Get the raw POST data
@@ -307,6 +313,7 @@ try {
     // Return error in proper JSON format
     debug_log('Exception caught', $e->getMessage());
     debug_log('Exception trace', $e->getTraceAsString());
+    file_put_contents('debug.log', "Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
     return_json(false, $e->getMessage());
 }
 

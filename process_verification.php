@@ -4,6 +4,10 @@ ini_set('log_errors', 1);
 ini_set('error_log', 'verification_error.log');
 error_reporting(E_ALL);
 
+// Add use statements at the top of the file
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 session_start();
 require_once 'dbconnect.php';
 
@@ -169,6 +173,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['verification_submitted'] = true;
             $_SESSION['verification_just_submitted'] = true;
             
+            // Get provider information from the form
+            $provider_name = $_POST['provider_name'] ?? 'Service Provider';
+            $provider_email = $_POST['provider_email'] ?? 'Unknown Email';
+            $id_type = $_POST['id_type'] ?? 'Not specified';
+            
+            // Send email notification to admin
+            sendVerificationEmail($provider_name, $provider_email, $id_type);
+            
             // Redirect to dashboard
             header('Location: provider_dashboard.php');
             exit();
@@ -182,6 +194,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         debug_log("Upload failed, redirecting back to dashboard");
         header('Location: provider_dashboard.php');
         exit();
+    }
+}
+
+// Function to send email notification to admin
+function sendVerificationEmail($providerName, $providerEmail, $idType) {
+    // Path to PHPMailer files - adjust if needed
+    require 'PHPMailer-master/src/Exception.php';
+    require 'PHPMailer-master/src/PHPMailer.php';
+    require 'PHPMailer-master/src/SMTP.php';
+
+    // Admin email details
+    $adminEmail = 'aparnaprasad363@gmail.com';
+    $appPassword = 'wbnh wldc yeqo sqzi';
+    
+    // Create a new PHPMailer instance
+    $mail = new PHPMailer(true);
+    
+    try {
+        // Server settings
+        $mail->isSMTP();
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = $adminEmail;
+        $mail->Password = $appPassword;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = 587;
+        
+        // Recipients
+        $mail->setFrom($adminEmail, 'ServiceHive Admin');
+        $mail->addAddress($adminEmail);
+        
+        // Content
+        $mail->isHTML(true);
+        $mail->Subject = 'New Provider Verification Request';
+        
+        // Email body
+        $body = "
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background-color: #ff5722; color: white; padding: 15px; text-align: center; }
+                .content { padding: 20px; background-color: #f9f9f9; }
+                .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #777; }
+                .button { display: inline-block; background-color: #ff5722; color: white; padding: 10px 20px; 
+                          text-decoration: none; border-radius: 5px; margin-top: 15px; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h2>New Provider Verification Request</h2>
+                </div>
+                <div class='content'>
+                    <p>Hello Admin,</p>
+                    <p>A service provider has submitted verification documents and is awaiting your approval.</p>
+                    <p><strong>Provider Details:</strong></p>
+                    <ul>
+                        <li><strong>Name:</strong> $providerName</li>
+                        <li><strong>Email:</strong> $providerEmail</li>
+                        <li><strong>ID Type:</strong> $idType</li>
+                        <li><strong>Submission Time:</strong> " . date('Y-m-d H:i:s') . "</li>
+                    </ul>
+                    <p>Please review the verification documents in the admin dashboard.</p>
+                    <a href='localhost/serviceHive/admin.php' class='button'>Review Verification</a>
+                </div>
+                <div class='footer'>
+                    <p>This is an automated message from ServiceHive. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+        
+        $mail->Body = $body;
+        $mail->AltBody = "New provider verification request from $providerName ($providerEmail). ID Type: $idType. Please review in the admin dashboard.";
+        
+        // Send the email
+        $mail->send();
+        
+        // Log success
+        error_log("Verification email sent to admin for provider: $providerName");
+        
+    } catch (Exception $e) {
+        // Log error
+        error_log("Failed to send verification email: " . $mail->ErrorInfo);
     }
 }
 ?> 

@@ -350,6 +350,31 @@ try {
         }
     }
 
+    // Add missing columns and modify existing ones in payments table
+    $alter_payment_queries = [
+        // Add booking_type column if it doesn't exist
+        "ALTER TABLE payments ADD COLUMN IF NOT EXISTS booking_type ENUM('regular', 'visit', 'emergency') DEFAULT 'regular' AFTER booking_id",
+        
+        // Add indexes if they don't exist
+        "ALTER TABLE payments ADD INDEX IF NOT EXISTS idx_booking (booking_id, booking_type)",
+        "ALTER TABLE payments ADD INDEX IF NOT EXISTS idx_status (status)",
+        "ALTER TABLE payments ADD INDEX IF NOT EXISTS idx_payment_date (payment_date)",
+        
+        // Modify status enum if needed
+        "ALTER TABLE payments MODIFY COLUMN status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'pending'",
+        
+        // Add timestamps if they don't exist
+        "ALTER TABLE payments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+    ];
+
+    // Execute the alter queries
+    foreach ($alter_payment_queries as $query) {
+        if (!$conn->query($query)) {
+            echo "Error executing alter query: " . $conn->error . "<br>";
+        }
+    }
+
     // Re-enable foreign key checks
     $conn->query("SET FOREIGN_KEY_CHECKS=1");
 

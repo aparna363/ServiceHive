@@ -151,8 +151,64 @@ $kerala_districts = [
 ];
 
 // Check verification status - Add proper null checks
+// First, get the column names from the verification_status table
+$columns_query = $conn->query("SHOW COLUMNS FROM verification_status");
+$columns = [];
+while ($column = $columns_query->fetch_assoc()) {
+    $columns[] = $column['Field'];
+}
+
+// Now build the query dynamically based on the actual column names
+$select_fields = "sp.verified_status, sp.id_type, sp.id_number";
+
+if (in_array('documents_uploaded', $columns)) {
+    $select_fields .= ", v.documents_uploaded";
+} else {
+    $select_fields .= ", 0 as documents_uploaded";
+}
+
+if (in_array('id_proof_front', $columns)) {
+    $select_fields .= ", v.id_proof_front";
+} elseif (in_array('front_id_proof', $columns)) {
+    $select_fields .= ", v.front_id_proof as id_proof_front";
+} else {
+    $select_fields .= ", '' as id_proof_front";
+}
+
+if (in_array('id_proof_back', $columns)) {
+    $select_fields .= ", v.id_proof_back";
+} elseif (in_array('back_id_proof', $columns)) {
+    $select_fields .= ", v.back_id_proof as id_proof_back";
+} else {
+    $select_fields .= ", '' as id_proof_back";
+}
+
+if (in_array('address_proof', $columns)) {
+    $select_fields .= ", v.address_proof";
+} else {
+    $select_fields .= ", '' as address_proof";
+}
+
+if (in_array('submission_date', $columns)) {
+    $select_fields .= ", v.submission_date";
+} else {
+    $select_fields .= ", NULL as submission_date";
+}
+
+if (in_array('verification_date', $columns)) {
+    $select_fields .= ", v.verification_date";
+} else {
+    $select_fields .= ", NULL as verification_date";
+}
+
+if (in_array('rejection_reason', $columns)) {
+    $select_fields .= ", v.rejection_reason";
+} else {
+    $select_fields .= ", NULL as rejection_reason";
+}
+
 $stmt = $conn->prepare("
-    SELECT sp.verified_status, v.documents_uploaded, sp.id_type, sp.id_number 
+    SELECT $select_fields
     FROM service_providers sp
     LEFT JOIN verification_status v ON v.provider_id = sp.provider_id
     WHERE sp.user_id = ?
@@ -167,8 +223,55 @@ if (!$verification_data) {
         'verified_status' => 0,
         'documents_uploaded' => 0,
         'id_type' => '',
-        'id_number' => ''
+        'id_number' => '',
+        'id_proof_front' => '',
+        'id_proof_back' => '',
+        'address_proof' => '',
+        'submission_date' => null,
+        'verification_date' => null,
+        'rejection_reason' => null
     ];
+}
+
+// Check if the user is a service provider
+$is_service_provider = false;
+$check_provider = $conn->prepare("SELECT provider_id FROM service_providers WHERE user_id = ?");
+$check_provider->bind_param("i", $user_id);
+$check_provider->execute();
+$provider_result = $check_provider->get_result();
+if ($provider_result->num_rows > 0) {
+    $is_service_provider = true;
+    $provider_data = $provider_result->fetch_assoc();
+    $provider_id = $provider_data['provider_id'];
+    
+    // Fetch verification details for the provider
+    $verification_query = $conn->prepare("
+        SELECT v.*, sp.id_type, sp.id_number 
+        FROM verification_status v
+        JOIN service_providers sp ON v.provider_id = sp.provider_id
+        WHERE v.provider_id = ?
+    ");
+    $verification_query->bind_param("i", $provider_id);
+    $verification_query->execute();
+    $verification_result = $verification_query->get_result();
+    
+    if ($verification_result->num_rows > 0) {
+        $verification_data = $verification_result->fetch_assoc();
+    } else {
+        // Initialize with default values if no verification data exists
+        $verification_data = [
+            'verified_status' => 0,
+            'documents_uploaded' => 0,
+            'id_type' => '',
+            'id_number' => '',
+            'id_proof_front' => '',
+            'id_proof_back' => '',
+            'address_proof' => '',
+            'submission_date' => null,
+            'verification_date' => null,
+            'rejection_reason' => null
+        ];
+    }
 }
 ?>
 
@@ -685,6 +788,46 @@ if (!$verification_data) {
                 justify-content: center;
             }
         }
+
+        .document-status {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .document-list {
+            margin-top: 20px;
+        }
+
+        .document-list h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .document-list ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .document-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e1e1e1;
+        }
+
+        .document-name {
+            color: #099409;
+            font-weight: 500;
+        }
+
+        .rejection-reason {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
     </style>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -800,6 +943,7 @@ if (!$verification_data) {
             </div>
 
             <!-- Add this after your existing profile form but before the closing </div> of main-content -->
+            <?php if ($is_service_provider): ?>
             <div class="verification-section">
                 <h2 class="section-title">Verification Details</h2>
                 
@@ -809,6 +953,38 @@ if (!$verification_data) {
                     </div>
                 </div>
 
+                <?php if ($verification_data['documents_uploaded']): ?>
+                <div class="document-status">
+                    <p><strong>Submission Date:</strong> <?php echo $verification_data['submission_date'] ? date('F j, Y', strtotime($verification_data['submission_date'])) : 'Not submitted'; ?></p>
+                    
+                    <?php if ($verification_data['verification_date']): ?>
+                    <p><strong>Verification Date:</strong> <?php echo date('F j, Y', strtotime($verification_data['verification_date'])); ?></p>
+                    <?php endif; ?>
+                    
+                    <?php if ($verification_data['rejection_reason']): ?>
+                    <p class="rejection-reason"><strong>Rejection Reason:</strong> <?php echo htmlspecialchars($verification_data['rejection_reason']); ?></p>
+                    <?php endif; ?>
+                    
+                    <div class="document-list">
+                        <h3>Submitted Documents</h3>
+                        <ul>
+                            <?php if ($verification_data['id_proof_front']): ?>
+                            <li>ID Proof (Front): <span class="document-name"><?php echo basename($verification_data['id_proof_front']); ?></span></li>
+                            <?php endif; ?>
+                            
+                            <?php if ($verification_data['id_proof_back']): ?>
+                            <li>ID Proof (Back): <span class="document-name"><?php echo basename($verification_data['id_proof_back']); ?></span></li>
+                            <?php endif; ?>
+                            
+                            <?php if ($verification_data['address_proof']): ?>
+                            <li>Address Proof: <span class="document-name"><?php echo basename($verification_data['address_proof']); ?></span></li>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!$verification_data['documents_uploaded'] || !$verification_data['verified_status']): ?>
                 <form id="verificationForm" action="process_verification.php" method="POST" enctype="multipart/form-data" class="verification-form">
                     <div class="form-grid">
                         <div class="form-group">
@@ -854,18 +1030,18 @@ if (!$verification_data) {
                         </div>
                     </div>
 
-                    <?php if (!($verification_data['verified_status'] ?? 0)): ?>
-                        <div class="terms-group">
-                            <input type="checkbox" id="terms" name="terms" required>
-                            <label for="terms">I agree to the verification terms and conditions</label>
-                        </div>
+                    <div class="terms-group">
+                        <input type="checkbox" id="terms" name="terms" required>
+                        <label for="terms">I agree to the verification terms and conditions</label>
+                    </div>
 
-                        <div class="button-group">
-                            <button type="submit" name="submit_verification" class="btn btn-success">Submit Verification</button>
-                        </div>
-                    <?php endif; ?>
+                    <div class="button-group">
+                        <button type="submit" name="submit_verification" class="btn btn-success">Submit Verification</button>
+                    </div>
                 </form>
+                <?php endif; ?>
             </div>
+            <?php endif; ?>
 
             <!-- Add this after the verification form but before the closing main-content div -->
             <div class="button-group-container">

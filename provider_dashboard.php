@@ -42,6 +42,9 @@ error_log("Provider data: " . print_r($provider_data, true));
 $is_verified = $provider_data['verified_status'] == 1;
 $verification_status = $provider_data['status'] ?? 'pending';
 
+// Check if provider is restricted (not verified and pending/rejected)
+$is_restricted = !$is_verified && ($verification_status == 'pending' || $verification_status == 'rejected');
+
 // Initialize documents_submitted variable
 $documents_submitted = false;
 
@@ -89,30 +92,36 @@ if (isset($_SESSION['verification_just_submitted']) && $_SESSION['verification_j
 // Debug logging
 error_log("Verification status: is_verified=$is_verified, documents_submitted=$documents_submitted, show_popup=$show_verification_popup");
 
-// Get pending bookings count
-$stmt = $conn->prepare("
-    SELECT COUNT(*) as pending_count 
-    FROM bookings 
-    WHERE provider_id = ? AND status = 'pending'
-");
-$stmt->bind_param("i", $provider_id);
-$stmt->execute();
-$pending_count = $stmt->get_result()->fetch_assoc()['pending_count'];
+// Only process bookings if provider is not restricted
+if (!$is_restricted) {
+    // Get pending bookings count
+    $stmt = $conn->prepare("
+        SELECT COUNT(*) as pending_count 
+        FROM bookings 
+        WHERE provider_id = ? AND status = 'pending'
+    ");
+    $stmt->bind_param("i", $provider_id);
+    $stmt->execute();
+    $pending_count = $stmt->get_result()->fetch_assoc()['pending_count'];
 
-// Store count of bookings that will be auto-approved
-$auto_approved_count = $pending_count;
+    // Store count of bookings that will be auto-approved
+    $auto_approved_count = $pending_count;
 
-// Automatically approve new bookings
-$stmt = $conn->prepare("
-    UPDATE bookings 
-    SET status = 'accepted' 
-    WHERE provider_id = ? AND status = 'pending'
-");
-$stmt->bind_param("i", $provider_id);
-$stmt->execute();
+    // Automatically approve new bookings
+    $stmt = $conn->prepare("
+        UPDATE bookings 
+        SET status = 'accepted' 
+        WHERE provider_id = ? AND status = 'pending'
+    ");
+    $stmt->bind_param("i", $provider_id);
+    $stmt->execute();
 
-// Check if any bookings were auto-approved
-$auto_approved = $auto_approved_count > 0 ? true : false;
+    // Check if any bookings were auto-approved
+    $auto_approved = $auto_approved_count > 0 ? true : false;
+} else {
+    $auto_approved = false;
+    $auto_approved_count = 0;
+}
 
 // Get today's bookings
 $today = date('Y-m-d');
@@ -264,9 +273,9 @@ $counts = $stmt->get_result()->fetch_assoc();
         }
 
         .company-logo {
-            width: 260px;  /* Fixed width for the logo */
-            height: auto;  /* Maintain aspect ratio */
-            max-width: 100%;  /* Ensure it doesn't overflow the sidebar */
+            width: 260px;
+            height: auto;
+            max-width: 100%;
             display: block;
             margin: 0 auto;
         }
@@ -948,6 +957,44 @@ $counts = $stmt->get_result()->fetch_assoc();
         .nav-links li a:has(.badge) {
             font-weight: 500;
         }
+
+        /* New styles for restricted items */
+        .disabled-item {
+            color: #999 !important;
+            cursor: not-allowed !important;
+            pointer-events: none !important;
+        }
+
+        .disabled-item:hover {
+            background-color: transparent !important;
+        }
+
+        .locked-text {
+            font-size: 12px;
+            color: #ff5722;
+            margin-left: 5px;
+        }
+
+        .restricted-message {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .restricted-message i {
+            font-size: 48px;
+            color: #ff5722;
+            margin-bottom: 20px;
+        }
+
+        .restricted-message h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .restricted-message p {
+            color: #666;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
@@ -959,9 +1006,36 @@ $counts = $stmt->get_result()->fetch_assoc();
             <ul class="sidebar-menu">
                 <li><a href="provider_dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="index.php"><i class="fas fa-globe"></i> Home </a></li>
-                <li><a href="#"><i class="fas fa-calendar"></i> Bookings</a></li>
-                <li><a href="service-management.php"><i class="fas fa-tools"></i> Services</a></li>
-                <li><a href="subservice-management.php"><i class="fas fa-tools"></i> Sub Services</a></li>
+                <li>
+                    <?php if ($is_restricted): ?>
+                        <a href="#" style="color: #999; cursor: not-allowed;" title="Available after verification">
+                            <i class="fas fa-calendar"></i> Bookings
+                            <span class="locked-text">(Locked)</span>
+                        </a>
+                    <?php else: ?>
+                        <a href="#"><i class="fas fa-calendar"></i> Bookings</a>
+                    <?php endif; ?>
+                </li>
+                <li>
+                    <?php if ($is_restricted): ?>
+                        <a href="#" style="color: #999; cursor: not-allowed;" title="Available after verification">
+                            <i class="fas fa-tools"></i> Services
+                            <span class="locked-text">(Locked)</span>
+                        </a>
+                    <?php else: ?>
+                        <a href="service-management.php"><i class="fas fa-tools"></i> Services</a>
+                    <?php endif; ?>
+                </li>
+                <li>
+                    <?php if ($is_restricted): ?>
+                        <a href="#" style="color: #999; cursor: not-allowed;" title="Available after verification">
+                            <i class="fas fa-tools"></i> Sub Services
+                            <span class="locked-text">(Locked)</span>
+                        </a>
+                    <?php else: ?>
+                        <a href="subservice-management.php"><i class="fas fa-tools"></i> Sub Services</a>
+                    <?php endif; ?>
+                </li>
                 <li><a href="provider-review.php"><i class="fas fa-star"></i> Reviews</a></li>
                 <li><a href="profile.php"><i class="fas fa-user"></i> Profile</a></li>
                 <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
@@ -1099,7 +1173,17 @@ $counts = $stmt->get_result()->fetch_assoc();
             <div class="bookings-container">
                 <h2><i class="fas fa-calendar-check"></i> All Bookings</h2>
                 
-                <?php if (empty($bookings)): ?>
+                <?php if ($is_restricted): ?>
+                    <div class="restricted-message">
+                        <i class="fas fa-lock"></i>
+                        <h3>Account Verification Required</h3>
+                        <p>Your account is currently under verification. You'll be able to manage bookings once your account is verified by our team.</p>
+                        <p>Please complete the verification process if you haven't already. This usually takes 1-2 business days.</p>
+                        <?php if (!$documents_submitted): ?>
+                            <p><a href="#" id="showVerificationBtn" style="color: #ff5722; text-decoration: underline;">Click here to complete verification</a></p>
+                        <?php endif; ?>
+                    </div>
+                <?php elseif (empty($bookings)): ?>
                     <div class="no-bookings">
                         <p>No bookings found.</p>
                     </div>
@@ -1149,25 +1233,32 @@ $counts = $stmt->get_result()->fetch_assoc();
                                         </td>
                                         <td>
                                             <div class="action-buttons">
-                                                <?php if ($booking['status'] === 'pending'): ?>
-                                                    <button onclick="updateBookingStatus(<?php echo $booking['booking_id']; ?>, 'accepted')" 
-                                                            class="btn-action accept">
-                                                        Accept
+                                                <?php if ($is_restricted): ?>
+                                                    <button disabled class="btn-action" style="opacity: 0.5; cursor: not-allowed;" 
+                                                            title="Available after verification">
+                                                        Actions locked
                                                     </button>
-                                                    <button onclick="updateBookingStatus(<?php echo $booking['booking_id']; ?>, 'rejected')" 
-                                                            class="btn-action reject">
-                                                        Reject
-                                                    </button>
-                                                <?php elseif ($booking['status'] === 'accepted'): ?>
-                                                    <button onclick="updateBookingStatus(<?php echo $booking['booking_id']; ?>, 'completed')" 
-                                                            class="btn-action complete">
-                                                        Complete
+                                                <?php else: ?>
+                                                    <?php if ($booking['status'] === 'pending'): ?>
+                                                        <button onclick="updateBookingStatus(<?php echo $booking['booking_id']; ?>, 'accepted')" 
+                                                                class="btn-action accept">
+                                                            Accept
+                                                        </button>
+                                                        <button onclick="updateBookingStatus(<?php echo $booking['booking_id']; ?>, 'rejected')" 
+                                                                class="btn-action reject">
+                                                            Reject
+                                                        </button>
+                                                    <?php elseif ($booking['status'] === 'accepted'): ?>
+                                                        <button onclick="updateBookingStatus(<?php echo $booking['booking_id']; ?>, 'completed')" 
+                                                                class="btn-action complete">
+                                                            Complete
+                                                        </button>
+                                                    <?php endif; ?>
+                                                    <button onclick="viewBookingDetails(<?php echo $booking['booking_id']; ?>)" 
+                                                            class="btn-action view">
+                                                        View
                                                     </button>
                                                 <?php endif; ?>
-                                                <button onclick="viewBookingDetails(<?php echo $booking['booking_id']; ?>)" 
-                                                        class="btn-action view">
-                                                    View
-                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -1229,6 +1320,10 @@ $counts = $stmt->get_result()->fetch_assoc();
                         <button type="submit" class="btn-submit">Submit Verification</button>
                         <button type="button" id="closePopupBtn" style="background: #ccc; margin-left: 10px;">Cancel</button>
                     </div>
+                    
+                    <!-- Add hidden fields for email notification -->
+                    <input type="hidden" name="provider_name" value="<?php echo htmlspecialchars($provider_name); ?>">
+                    <input type="hidden" name="provider_email" value="<?php echo htmlspecialchars($provider_data['email'] ?? ''); ?>">
                 </form>
             </div>
         </div>
@@ -1330,7 +1425,8 @@ $counts = $stmt->get_result()->fetch_assoc();
             const notificationDropdown = document.getElementById('notificationDropdown');
 
             if (showVerificationBtn) {
-                showVerificationBtn.addEventListener('click', function() {
+                showVerificationBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
                     verificationPopup.style.display = 'flex';
                 });
             }

@@ -1,0 +1,2 @@
+Request received: {"category_id":"","visit_date":"2025-03-27","visit_time":"13:54","visit_address":"hjk","visit_notes":"nm,","amount":"100","type":"visit"}
+About to send response: {"success":false,"message":"Form data is required"}
