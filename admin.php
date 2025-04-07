@@ -8,18 +8,28 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 // Database connection
 require_once 'dbconnect.php';
-
-// Include PHPMailer classes directly
- require 'PHPMailer-master/src/Exception.php';
-    require 'PHPMailer-master/src/PHPMailer.php';
-    require 'PHPMailer-master/src/SMTP.php';
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+// Include the email helper function
+require_once 'email_helper.php';
 
 // Get counts for dashboard stats
 $userCount = $conn->query("SELECT COUNT(*) as count FROM users WHERE role != 'admin'")->fetch_assoc()['count'];
 $providerCount = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'service_provider'")->fetch_assoc()['count'];
 $bookingCount = $conn->query("SELECT COUNT(*) as count FROM bookings")->fetch_assoc()['count'];
+
+// Calculate commission statistics
+$commissionQuery = "
+    SELECT 
+        SUM(COALESCE(b.total_amount, b.total_price)) as total_earnings,
+        SUM(COALESCE(b.total_amount, b.total_price) * 0.3) as admin_commission,
+        COUNT(DISTINCT b.provider_id) as active_providers
+    FROM bookings b
+    WHERE b.status = 'completed' AND b.payment_status = 'paid'
+";
+$commissionStats = $conn->query($commissionQuery)->fetch_assoc();
+
+$totalEarnings = $commissionStats['total_earnings'] ?? 0;
+$adminCommission = $commissionStats['admin_commission'] ?? 0;
+$activeProviders = $commissionStats['active_providers'] ?? 0;
 
 // Get pending verification requests
 $stmt = $conn->prepare("
@@ -31,16 +41,6 @@ $stmt = $conn->prepare("
 ");
 $stmt->execute();
 $pending_verifications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-
-// Email configuration settings
-// These should be placed at the top of your file after database connection
-// In a production environment, consider using environment variables instead
-$EMAIL_HOST = 'smtp.gmail.com';
-$EMAIL_PORT = 587;
-$EMAIL_USERNAME = 'aparnaprasad363@gmail.com'; 
-$EMAIL_PASSWORD = 'wbnh wldc yeqo sqzi';  // Consider using app password for Gmail
-$EMAIL_FROM = 'aparnaprasad363@gmail.com';
-$EMAIL_FROM_NAME = 'ServiceHive';
 
 // Functions for database operations
 function getServiceProviders($db) {
@@ -90,7 +90,7 @@ function getServices($db) {
     return $db->query($query);
 }
 
-// Update the generateReport function to include services
+// Update the generateReport function to include services and commission report
 function generateReport($db, $type, $format = 'csv') {
     switch ($type) {
         case 'users':
@@ -112,6 +112,11 @@ function generateReport($db, $type, $format = 'csv') {
             $data = getServices($db);
             $headers = ['ID', 'Service Name', 'Category', 'Description'];
             $filename = 'services_report_' . date('Y-m-d') . '.' . $format;
+            break;
+        case 'commission':
+            $data = getCommissionReport($db);
+            $headers = ['Provider ID', 'Provider Name', 'Business Name', 'Completed Bookings', 'Total Earnings', 'Admin Commission (30%)', 'Provider Earnings (70%)'];
+            $filename = 'commission_report_' . date('Y-m-d') . '.' . $format;
             break;
         default:
             return false;
@@ -154,6 +159,27 @@ function generateCSVReport($data, $headers, $filename) {
     ];
 }
 
+// Add a new function to get commission report data
+function getCommissionReport($db) {
+    $query = "
+        SELECT 
+            sp.provider_id,
+            u.username as provider_name,
+            sp.business_name,
+            COUNT(b.booking_id) as completed_bookings,
+            SUM(COALESCE(b.total_amount, b.total_price)) as total_earnings,
+            SUM(COALESCE(b.total_amount, b.total_price) * 0.3) as admin_commission,
+            SUM(COALESCE(b.total_amount, b.total_price) * 0.7) as provider_earnings
+        FROM bookings b
+        JOIN service_providers sp ON b.provider_id = sp.provider_id
+        JOIN users u ON sp.user_id = u.id
+        WHERE b.status = 'completed' AND b.payment_status = 'paid'
+        GROUP BY sp.provider_id
+        ORDER BY total_earnings DESC
+    ";
+    return $db->query($query);
+}
+
 // Handle report downloads
 if (isset($_GET['report'])) {
     $reportType = $_GET['report'];
@@ -170,41 +196,6 @@ if (isset($_GET['report'])) {
         $_SESSION['error'] = "Failed to generate report";
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
-    }
-}
-
-// Create a helper function for sending emails
-function sendServiceHiveEmail($recipientEmail, $recipientName, $subject, $message) {
-    global $conn, $EMAIL_HOST, $EMAIL_PORT, $EMAIL_USERNAME, $EMAIL_PASSWORD, $EMAIL_FROM, $EMAIL_FROM_NAME;
-    
-    // Use PHPMailer
-    $mail = new PHPMailer(true);
-
-    try {
-        $mail->isSMTP();
-        $mail->Host       = $EMAIL_HOST;
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $EMAIL_USERNAME;
-        $mail->Password   = $EMAIL_PASSWORD;
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = $EMAIL_PORT;
-
-        $mail->setFrom($EMAIL_FROM, $EMAIL_FROM_NAME);
-        $mail->addAddress($recipientEmail, $recipientName);
-        $mail->Subject = $subject;
-        $mail->Body    = $message;
-
-        $mail->send();
-        return true;
-    } catch (Exception $e) {
-        error_log("Email sending failed: " . $mail->ErrorInfo);
-        
-        // Store the email in a database table for later sending
-        $emailMessage = $conn->prepare("INSERT INTO email_queue (recipient, subject, message, created_at) 
-                                       VALUES (?, ?, ?, NOW())");
-        $emailMessage->bind_param("sss", $recipientEmail, $subject, $message);
-        $emailMessage->execute();
-        return false;
     }
 }
 
@@ -244,18 +235,14 @@ function approveServiceProvider($db, $id) {
         $stmt4->bind_param("i", $id);
         $stmt4->execute();
         
-        // Send email notification using PHPMailer
-        if (!empty($user['email'])) {
-            $subject = "Your ServiceHive Account Has Been Approved";
-            $message = "Dear " . htmlspecialchars($user['username']) . ",\n\n";
-            $message .= "Congratulations! Your ServiceHive account has been approved by our administration team.\n\n";
-            $message .= "You can now log in to your account and start offering your services to customers.\n\n";
-            $message .= "Thank you for joining ServiceHive!\n\n";
-            $message .= "Best regards,\nThe ServiceHive Team";
-            
-            // Use the helper function to send email
-            sendServiceHiveEmail($user['email'], $user['username'], $subject, $message);
-        }
+        // Use the helper function to send email (pass $db connection)
+        $subject = "Your ServiceHive Account Has Been Approved";
+        $message = "Dear " . htmlspecialchars($user['username']) . ",\n\n";
+        $message .= "Congratulations! Your ServiceHive account has been approved by our administration team.\n\n";
+        $message .= "You can now log in to your account and start offering your services to customers.\n\n";
+        $message .= "Thank you for joining ServiceHive!\n\n";
+        $message .= "Best regards,\nThe ServiceHive Team";
+        sendServiceHiveEmail($db, $user['email'], $user['username'], $subject, $message);
         
         $db->commit();
         
@@ -308,18 +295,14 @@ function rejectServiceProvider($db, $id) {
         $stmt4->bind_param("i", $id);
         $stmt4->execute();
 
-        // Send email notification using PHPMailer
-        if (!empty($user['email'])) {
-            $subject = "Your ServiceHive Application Status";
-            $message = "Dear " . htmlspecialchars($user['username']) . ",\n\n";
-            $message .= "We regret to inform you that your ServiceHive service provider application has been rejected.\n\n";
-            $message .= "If you believe this is an error or would like to understand the reason, please contact our support team at support@servicehive.com.\n\n";
-            $message .= "You may reapply after addressing any issues with your application.\n\n";
-            $message .= "Best regards,\nThe ServiceHive Team";
-            
-            // Use the helper function to send email
-            sendServiceHiveEmail($user['email'], $user['username'], $subject, $message);
-        }
+        // Use the helper function to send email (pass $db connection)
+        $subject = "Your ServiceHive Application Status";
+        $message = "Dear " . htmlspecialchars($user['username']) . ",\n\n";
+        $message .= "We regret to inform you that your ServiceHive service provider application has been rejected.\n\n";
+        $message .= "If you believe this is an error or would like to understand the reason, please contact our support team at support@servicehive.com.\n\n";
+        $message .= "You may reapply after addressing any issues with your application.\n\n";
+        $message .= "Best regards,\nThe ServiceHive Team";
+        sendServiceHiveEmail($db, $user['email'], $user['username'], $subject, $message);
 
         $db->commit();
         
@@ -535,7 +518,7 @@ $bookings = getBookings($conn);
         }
 
         .logout-btn {
-            margin-top: 270px;
+            margin-top: 225px;
             background-color: rgb(133, 36, 3);
         }
 
@@ -747,10 +730,10 @@ $bookings = getBookings($conn);
         }
         
         .verification-documents {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
         }
         
         .document-preview {
@@ -878,10 +861,10 @@ $bookings = getBookings($conn);
         
         .verification-modal-content {
             background-color: white;
-            margin: 50px auto;
-            padding: 30px;
+            margin: 30px auto;
+            padding: 20px;
             width: 80%;
-            max-width: 900px;
+            max-width: 800px;
             border-radius: 8px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
             position: relative;
@@ -903,54 +886,57 @@ $bookings = getBookings($conn);
         .verification-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
+            gap: 10px;
+            margin-bottom: 15px;
         }
         
         .verification-detail-item {
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
         
         .verification-detail-label {
             font-weight: 600;
             color: #495057;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
             display: block;
+            font-size: 13px;
         }
         
         .verification-detail-value {
             color: #212529;
+            font-size: 14px;
         }
         
         .verification-documents {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-bottom: 30px;
+            gap: 10px;
+            margin-bottom: 20px;
         }
         
         .verification-document {
             border: 1px solid #e0e0e0;
-            border-radius: 8px;
+            border-radius: 6px;
             overflow: hidden;
         }
         
         .verification-document-label {
             background-color: #f8f9fa;
-            padding: 10px;
+            padding: 6px 8px;
             font-weight: 600;
+            font-size: 14px;
             color: #495057;
             border-bottom: 1px solid #e0e0e0;
         }
         
         .verification-document-image {
-            padding: 10px;
+            padding: 5px;
             text-align: center;
         }
         
         .verification-document-image img {
             max-width: 100%;
-            max-height: 300px;
+            max-height: 200px;
             object-fit: contain;
         }
         
@@ -1022,6 +1008,118 @@ $bookings = getBookings($conn);
             justify-content: space-between;
             align-items: center;
         }
+
+        /* Commission section styles */
+        .commission-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .commission-card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .commission-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .commission-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+        }
+        
+        .commission-icon i {
+            font-size: 24px;
+            color: white;
+        }
+        
+        .commission-details {
+            flex-grow: 1;
+        }
+        
+        .commission-details h3 {
+            font-size: 14px;
+            color: #666;
+            margin: 0;
+            margin-bottom: 5px;
+        }
+        
+        .commission-details p {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin: 0;
+            margin-bottom: 5px;
+        }
+        
+        .commission-details small {
+            color: #888;
+            font-size: 12px;
+        }
+        
+        /* Commission card colors */
+        .commission-card.total .commission-icon {
+            background-color: #4CAF50;
+        }
+        
+        .commission-card.admin .commission-icon {
+            background-color: #2196F3;
+        }
+        
+        .commission-card.provider .commission-icon {
+            background-color: #FF9800;
+        }
+        
+        .commission-card.providers .commission-icon {
+            background-color: #9C27B0;
+        }
+        
+        .subsection-title {
+            margin: 30px 0 20px;
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        /* Dashboard stat icon colors */
+        .stat-icon.commission {
+            background: #2196F3;
+        }
+
+        .verification-image {
+            max-width: 100%;
+            max-height: 200px;
+            object-fit: contain;
+        }
+        
+        .image-container {
+            margin-bottom: 10px;
+        }
+        
+        .image-container h4 {
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: #495057;
+        }
+
+        .verification-modal h3 {
+            margin: 15px 0 10px;
+            color: #333;
+            font-size: 16px;
+        }
     </style>
 </head>
 <body>
@@ -1058,7 +1156,10 @@ $bookings = getBookings($conn);
                     <i class="fas fa-users"></i>
                     <span>Users</span>
                 </a>
-               
+                <a href="support_tickets.php" class="menu-item">
+                    <i class="fas fa-inbox"></i>
+                    <span>Help Desk</span>
+                </a>
                 
                 <a href="logout.php" class="menu-item logout-btn">
                     <i class="fas fa-sign-out-alt"></i>
@@ -1080,23 +1181,165 @@ $bookings = getBookings($conn);
 
         <!-- Main Content -->
         <div class="main-content">
-            <!-- Stats Grid -->
-            <div class="stats-grid" id="dashboard">
-                <div class="stat-card">
-                    <div class="stat-value"><?php echo $userCount; ?></div>
-                    <div class="stat-label">Total Users</div>
-                    <i class="fas fa-users stat-icon"></i>
+            <!-- Flash messages -->
+            <?php if (isset($_SESSION['message'])): ?>
+                <div class="alert alert-success">
+                    <?php echo $_SESSION['message']; unset($_SESSION['message']); ?>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value"><?php echo $providerCount; ?></div>
-                    <div class="stat-label">Service Providers</div>
-                    <i class="fas fa-user-tie stat-icon"></i>
+            <?php endif; ?>
+            
+            <?php if (isset($_SESSION['error'])): ?>
+                <div class="alert alert-danger">
+                    <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value"><?php echo $bookingCount; ?></div>
-                    <div class="stat-label">Total Bookings</div>
-                    <i class="fas fa-calendar-check stat-icon"></i>
+            <?php endif; ?>
+
+            <!-- Dashboard Stats -->
+            <div class="dashboard-stats" style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 30px;">
+                <div class="stat-card" style="flex: 1; min-width: 220px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; align-items: center;">
+                    <div class="stat-icon users" style="width: 50px; height: 50px; border-radius: 50%; background: #4CAF50; display: flex; align-items: center; justify-content: center; margin-right: 15px;">
+                        <i class="fas fa-users" style="font-size: 20px; color: white;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 style="margin: 0; color: #666; font-size: 14px;">Total Users</h3>
+                        <p style="margin: 5px 0 0; font-size: 24px; font-weight: bold; color: #333;"><?php echo $userCount; ?></p>
+                    </div>
                 </div>
+                
+                <div class="stat-card" style="flex: 1; min-width: 220px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; align-items: center;">
+                    <div class="stat-icon providers" style="width: 50px; height: 50px; border-radius: 50%; background: #2196F3; display: flex; align-items: center; justify-content: center; margin-right: 15px;">
+                        <i class="fas fa-user-tie" style="font-size: 20px; color: white;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 style="margin: 0; color: #666; font-size: 14px;">Service Providers</h3>
+                        <p style="margin: 5px 0 0; font-size: 24px; font-weight: bold; color: #333;"><?php echo $providerCount; ?></p>
+                    </div>
+                </div>
+                
+                <div class="stat-card" style="flex: 1; min-width: 220px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; align-items: center;">
+                    <div class="stat-icon bookings" style="width: 50px; height: 50px; border-radius: 50%; background: #FF9800; display: flex; align-items: center; justify-content: center; margin-right: 15px;">
+                        <i class="fas fa-calendar-check" style="font-size: 20px; color: white;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 style="margin: 0; color: #666; font-size: 14px;">Total Bookings</h3>
+                        <p style="margin: 5px 0 0; font-size: 24px; font-weight: bold; color: #333;"><?php echo $bookingCount; ?></p>
+                    </div>
+                </div>
+                
+                <div class="stat-card" style="flex: 1; min-width: 220px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; align-items: center;">
+                    <div class="stat-icon commission" style="width: 50px; height: 50px; border-radius: 50%; background: #9C27B0; display: flex; align-items: center; justify-content: center; margin-right: 15px;">
+                        <i class="fas fa-money-bill-wave" style="font-size: 20px; color: white;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 style="margin: 0; color: #666; font-size: 14px;">Commission Earned</h3>
+                        <p style="margin: 5px 0 0; font-size: 24px; font-weight: bold; color: #333;">₹<?php echo number_format($adminCommission, 2); ?></p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Commission Details Section -->
+            <div class="section" id="commission">
+                <h2>
+                    <i class="fas fa-money-bill-wave"></i> Commission Details
+                    <a href="?report=commission" class="btn btn-report">
+                        <i class="fas fa-download"></i> Download Report
+                    </a>
+                </h2>
+                
+                <div class="commission-overview">
+                    <div class="commission-card total">
+                        <div class="commission-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="commission-details">
+                            <h3>Total Platform Earnings</h3>
+                            <p>₹<?php echo number_format($totalEarnings, 2); ?></p>
+                            <small>From all completed bookings</small>
+                        </div>
+                    </div>
+                    
+                    <div class="commission-card admin">
+                        <div class="commission-icon">
+                            <i class="fas fa-percentage"></i>
+                        </div>
+                        <div class="commission-details">
+                            <h3>Admin Commission (30%)</h3>
+                            <p>₹<?php echo number_format($adminCommission, 2); ?></p>
+                            <small>Platform revenue</small>
+                        </div>
+                    </div>
+                    
+                    <div class="commission-card provider">
+                        <div class="commission-icon">
+                            <i class="fas fa-hand-holding-usd"></i>
+                        </div>
+                        <div class="commission-details">
+                            <h3>Provider Earnings (70%)</h3>
+                            <p>₹<?php echo number_format($totalEarnings - $adminCommission, 2); ?></p>
+                            <small>Distributed to service providers</small>
+                        </div>
+                    </div>
+                    
+                    <div class="commission-card providers">
+                        <div class="commission-icon">
+                            <i class="fas fa-user-tie"></i>
+                        </div>
+                        <div class="commission-details">
+                            <h3>Active Providers</h3>
+                            <p><?php echo $activeProviders; ?></p>
+                            <small>With completed bookings</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Top Earning Providers -->
+                <?php
+                $topProvidersQuery = "
+                    SELECT 
+                        sp.provider_id,
+                        u.username,
+                        sp.business_name,
+                        COUNT(b.booking_id) as booking_count,
+                        SUM(COALESCE(b.total_amount, b.total_price)) as total_earnings,
+                        SUM(COALESCE(b.total_amount, b.total_price) * 0.3) as admin_commission
+                    FROM bookings b
+                    JOIN service_providers sp ON b.provider_id = sp.provider_id
+                    JOIN users u ON sp.user_id = u.id
+                    WHERE b.status = 'completed' AND b.payment_status = 'paid'
+                    GROUP BY sp.provider_id
+                    ORDER BY total_earnings DESC
+                    LIMIT 5
+                ";
+                $topProviders = $conn->query($topProvidersQuery);
+                ?>
+                
+                <h3 class="subsection-title">Top Earning Providers</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Provider</th>
+                            <!-- <th>Business Name</th> -->
+                            <th>Completed Bookings</th>
+                            <th>Total Earnings</th>
+                            <th>Admin Commission</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ($topProviders && $topProviders->num_rows > 0): ?>
+                            <?php while ($provider = $topProviders->fetch_assoc()): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($provider['username']); ?></td>
+                                    <!-- <td><?php echo htmlspecialchars($provider['business_name'] ?? 'N/A'); ?></td> -->
+                                    <td><?php echo $provider['booking_count']; ?></td>
+                                    <td>₹<?php echo number_format($provider['total_earnings'], 2); ?></td>
+                                    <td>₹<?php echo number_format($provider['admin_commission'], 2); ?></td>
+                                </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="5">No completed bookings found.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
 
             <!-- Verification requests section -->
@@ -1179,7 +1422,7 @@ $bookings = getBookings($conn);
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <button type="button" class="btn btn-approve" onclick="updateProviderStatus(<?php echo $provider['id']; ?>, 'approved')">Approve</button>
+                                        <!-- <button type="button" class="btn btn-approve" onclick="updateProviderStatus(<?php echo $provider['id']; ?>, 'approved')">Approve</button> -->
                                         <button type="button" class="btn btn-reject" onclick="updateProviderStatus(<?php echo $provider['id']; ?>, 'rejected')">Reject</button>
                                     </td>
                                 </tr>
@@ -1275,10 +1518,10 @@ $bookings = getBookings($conn);
         <i class="fas <?php echo $user['is_active'] ? 'fa-user-slash' : 'fa-user-check'; ?>"></i>
         <?php echo $user['is_active'] ? 'Deactivate' : 'Activate'; ?>
     </button>
-    <button type="submit" name="delete_user" class="btn btn-delete" 
+    <!-- <button type="submit" name="delete_user" class="btn btn-delete" 
             onclick="return confirm('Are you sure you want to delete this user?')">
         <i class="fas fa-trash"></i> Delete
-    </button>
+    </button> -->
 </form>
                                     </td>
                                 </tr>
@@ -1378,30 +1621,49 @@ $bookings = getBookings($conn);
                         // Create content based on whether documents exist
                         if (details.has_documents) {
                             let content = `
-                                <div class="verification-info">
-                                    <p><strong>Business Name:</strong> ${details.business_name || 'N/A'}</p>
-                                    <p><strong>ID Type:</strong> ${details.id_type || 'N/A'}</p>
-                                    <p><strong>ID Number:</strong> ${details.id_number || 'N/A'}</p>
-                                    <p><strong>Uploaded:</strong> ${details.uploaded_at ? new Date(details.uploaded_at).toLocaleString() : 'N/A'}</p>
+                                <div class="verification-details">
+                                    <div class="verification-detail-item">
+                                        <span class="verification-detail-label">Business Name</span>
+                                        <span class="verification-detail-value">${details.business_name || 'N/A'}</span>
+                                    </div>
+                                    <div class="verification-detail-item">
+                                        <span class="verification-detail-label">ID Type</span>
+                                        <span class="verification-detail-value">${details.id_type || 'N/A'}</span>
+                                    </div>
+                                    <div class="verification-detail-item">
+                                        <span class="verification-detail-label">ID Number</span>
+                                        <span class="verification-detail-value">${details.id_number || 'N/A'}</span>
+                                    </div>
+                                    <div class="verification-detail-item">
+                                        <span class="verification-detail-label">Uploaded</span>
+                                        <span class="verification-detail-value">${details.uploaded_at ? new Date(details.uploaded_at).toLocaleString() : 'N/A'}</span>
+                                    </div>
                                 </div>
-                                <div class="verification-images">
-                                    <div class="image-container">
-                                        <h4>ID Front</h4>
-                                        ${details.id_front_path ? 
-                                            `<img src="${details.id_front_path}" alt="ID Front" class="verification-image">` : 
-                                            '<p class="text-center">No image uploaded</p>'}
+                                <h3>Verification Documents</h3>
+                                <div class="verification-documents">
+                                    <div class="verification-document">
+                                        <div class="verification-document-label">ID Front</div>
+                                        <div class="verification-document-image">
+                                            ${details.id_front_path ? 
+                                                `<img src="${details.id_front_path}" alt="ID Front" class="verification-image">` : 
+                                                '<p class="text-center">No image uploaded</p>'}
+                                        </div>
                                     </div>
-                                    <div class="image-container">
-                                        <h4>ID Back</h4>
-                                        ${details.id_back_path ? 
-                                            `<img src="${details.id_back_path}" alt="ID Back" class="verification-image">` : 
-                                            '<p class="text-center">No image uploaded</p>'}
+                                    <div class="verification-document">
+                                        <div class="verification-document-label">ID Back</div>
+                                        <div class="verification-document-image">
+                                            ${details.id_back_path ? 
+                                                `<img src="${details.id_back_path}" alt="ID Back" class="verification-image">` : 
+                                                '<p class="text-center">No image uploaded</p>'}
+                                        </div>
                                     </div>
-                                    <div class="image-container">
-                                        <h4>Address Proof</h4>
-                                        ${details.address_proof_path ? 
-                                            `<img src="${details.address_proof_path}" alt="Address Proof" class="verification-image">` : 
-                                            '<p class="text-center">No image uploaded</p>'}
+                                    <div class="verification-document">
+                                        <div class="verification-document-label">Address Proof</div>
+                                        <div class="verification-document-image">
+                                            ${details.address_proof_path ? 
+                                                `<img src="${details.address_proof_path}" alt="Address Proof" class="verification-image">` : 
+                                                '<p class="text-center">No image uploaded</p>'}
+                                        </div>
                                     </div>
                                 </div>
                             `;
@@ -1513,19 +1775,19 @@ $bookings = getBookings($conn);
                     <div class="verification-document">
                         <div class="verification-document-label">ID Proof (Front)</div>
                         <div class="verification-document-image">
-                            <img src="${details.id_proof_front}" alt="ID Proof Front">
+                            <img src="${details.id_proof_front}" alt="ID Proof Front" class="verification-image">
                         </div>
                     </div>
                     <div class="verification-document">
                         <div class="verification-document-label">ID Proof (Back)</div>
                         <div class="verification-document-image">
-                            <img src="${details.id_proof_back}" alt="ID Proof Back">
+                            <img src="${details.id_proof_back}" alt="ID Proof Back" class="verification-image">
                         </div>
                     </div>
                     <div class="verification-document">
                         <div class="verification-document-label">Address Proof</div>
                         <div class="verification-document-image">
-                            <img src="${details.address_proof}" alt="Address Proof">
+                            <img src="${details.address_proof}" alt="Address Proof" class="verification-image">
                         </div>
                     </div>
                 </div>
@@ -1575,7 +1837,7 @@ $bookings = getBookings($conn);
                 if (data.success) {
                     alert(data.message);
                     closeVerificationModal();
-                    // Reload the page to update the verification list
+                    // Reload the page to update the verification list and service providers table
                     location.reload();
                 } else {
                     alert('Error: ' + data.message);

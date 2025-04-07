@@ -131,7 +131,7 @@ $stmt = $conn->prepare("
     JOIN users u ON b.user_id = u.id
     JOIN tbl_services s ON b.service_id = s.service_id
     WHERE b.provider_id = ? AND DATE(b.booking_date) = ?
-    ORDER BY b.booking_date, b.booking_time
+    ORDER BY b.booking_date, b.time_slot
 ");
 $stmt->bind_param("is", $provider_id, $today);
 $stmt->execute();
@@ -169,6 +169,23 @@ $stmt->bind_param("i", $provider_id);
 $stmt->execute();
 $pending_reviews_result = $stmt->get_result()->fetch_assoc();
 $pending_reviews_count = $pending_reviews_result['pending_reviews'] ?? 0;
+
+// Calculate commission data
+$stmt = $conn->prepare("
+    SELECT 
+        SUM(COALESCE(b.total_amount, b.total_price)) as total_earnings,
+        SUM(COALESCE(b.total_amount, b.total_price) * 0.3) as admin_commission,
+        SUM(COALESCE(b.total_amount, b.total_price) * 0.7) as provider_earnings
+    FROM bookings b
+    WHERE b.provider_id = ? AND b.status = 'completed' AND b.payment_status = 'paid'
+");
+$stmt->bind_param("i", $provider_id);
+$stmt->execute();
+$commission_data = $stmt->get_result()->fetch_assoc();
+
+$total_earnings = $commission_data['total_earnings'] ?? 0;
+$admin_commission = $commission_data['admin_commission'] ?? 0;
+$provider_earnings = $commission_data['provider_earnings'] ?? 0;
 
 // Get recent reviews (limit to 2)
 $stmt = $conn->prepare("
@@ -995,6 +1012,76 @@ $counts = $stmt->get_result()->fetch_assoc();
             color: #666;
             line-height: 1.6;
         }
+
+        /* Commission section styles */
+        .commission-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .commission-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .commission-card {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .commission-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .commission-card h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .commission-card p {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .commission-card.total-earnings {
+            border-left: 4px solid #28a745;
+        }
+
+        .commission-card.admin-commission {
+            border-left: 4px solid #dc3545;
+        }
+
+        .commission-card.your-earnings {
+            border-left: 4px solid #007bff;
+        }
+
+        .commission-info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff3cd;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+        }
+
+        .commission-info p {
+            margin: 0;
+            color: #856404;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .commission-stats {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1037,6 +1124,7 @@ $counts = $stmt->get_result()->fetch_assoc();
                     <?php endif; ?>
                 </li>
                 <li><a href="provider-review.php"><i class="fas fa-star"></i> Reviews</a></li>
+                <li><a href="contact_support.php"><i class="fas fa-headset"></i> Help</a></li>
                 <li><a href="profile.php"><i class="fas fa-user"></i> Profile</a></li>
                 <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
@@ -1159,14 +1247,32 @@ $counts = $stmt->get_result()->fetch_assoc();
                     </div>
                 </div>
                 
-                <div class="stat-card">
-                    <div class="stat-icon rejected">
-                        <i class="fas fa-times-circle"></i>
+                
+            </div>
+
+            <!-- Add Commission Information Section -->
+            <div class="commission-container" style="background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 30px;">
+                <h2 style="margin-bottom: 20px; color: #333; font-size: 1.5rem;"><i class="fas fa-money-bill-wave"></i> Earnings & Commission</h2>
+                
+                <div class="commission-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                    <div class="commission-card" style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+                        <h3 style="font-size: 14px; color: #666; margin-bottom: 10px;">Total Earnings</h3>
+                        <p style="font-size: 24px; font-weight: bold; color: #28a745; margin: 0;">₹<?php echo number_format($total_earnings, 2); ?></p>
                     </div>
-                    <div class="stat-details">
-                        <h3>Rejected</h3>
-                        <p><?php echo $counts['rejected_bookings']; ?></p>
+                    
+                    <div class="commission-card" style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                        <h3 style="font-size: 14px; color: #666; margin-bottom: 10px;">Admin Commission (30%)</h3>
+                        <p style="font-size: 24px; font-weight: bold; color: #dc3545; margin: 0;">₹<?php echo number_format($admin_commission, 2); ?></p>
                     </div>
+                    
+                    <div class="commission-card" style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff;">
+                        <h3 style="font-size: 14px; color: #666; margin-bottom: 10px;">Your Earnings (70%)</h3>
+                        <p style="font-size: 24px; font-weight: bold; color: #007bff; margin: 0;">₹<?php echo number_format($provider_earnings, 2); ?></p>
+                    </div>
+                </div>
+                
+                <div class="commission-info" style="margin-top: 20px; padding: 15px; background-color: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                    <p style="margin: 0; color: #856404;"><i class="fas fa-info-circle"></i> ServiceHive charges a 30% commission on all completed bookings. The remaining 70% is your earnings.</p>
                 </div>
             </div>
 
@@ -1195,8 +1301,9 @@ $counts = $stmt->get_result()->fetch_assoc();
                                     <th>Booking ID</th>
                                     <th>Customer</th>
                                     <th>Service</th>
-                                    <th>Date & Time</th>
+                                    <th>Date</th>
                                     <th>Amount</th>
+                                    <th>Your Earnings</th>
                                     <th>Status</th>
                                     <th>Payment</th>
                                     <th>Actions</th>
@@ -1217,10 +1324,26 @@ $counts = $stmt->get_result()->fetch_assoc();
                                         <td>
                                             <?php 
                                             echo date('d M Y', strtotime($booking['booking_date'])) . '<br>';
-                                            echo date('h:i A', strtotime($booking['time_slot']));
+                                            
                                             ?>
                                         </td>
-                                        <td>₹<?php echo number_format($booking['final_price'], 2); ?></td>
+                                        <td>
+                                            ₹<?php echo number_format($booking['final_price'], 2); ?>
+                                            <?php if ($booking['status'] === 'completed' && $booking['payment_status'] === 'paid'): ?>
+                                                <small style="display: block; color: #dc3545;">
+                                                    -₹<?php echo number_format($booking['final_price'] * 0.3, 2); ?> (30% commission)
+                                                </small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($booking['status'] === 'completed' && $booking['payment_status'] === 'paid'): ?>
+                                                <span style="color: #28a745; font-weight: bold;">
+                                                    ₹<?php echo number_format($booking['final_price'] * 0.7, 2); ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <span style="color: #6c757d;">Pending</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td>
                                             <span class="status-badge status-<?php echo strtolower($booking['status']); ?>">
                                                 <?php echo ucfirst($booking['status']); ?>
@@ -1293,7 +1416,8 @@ $counts = $stmt->get_result()->fetch_assoc();
                     <div class="form-group">
                         <label for="popup_id_number">ID Number*</label>
                         <input type="text" id="popup_id_number" name="id_number" required>
-                        <small class="id-format-hint"></small>
+                        <small class="id-format-hint" id="id-format-hint"></small>
+                        <small class="id-error" id="id-error" style="color: red; display: none;"></small>
                     </div>
 
                     <div class="form-group">
@@ -1352,6 +1476,7 @@ $counts = $stmt->get_result()->fetch_assoc();
                 const formData = new FormData();
                 formData.append('booking_id', bookingId);
                 formData.append('status', status);
+                formData.append('booking_type', 'regular');
 
                 fetch('update_booking_status.php', {
                     method: 'POST',
@@ -1378,7 +1503,7 @@ $counts = $stmt->get_result()->fetch_assoc();
         }
 
         function viewBookingDetails(bookingId) {
-            window.location.href = 'booking_details.php?id=' + bookingId;
+            window.location.href = 'bookingdetails.php?id=' + bookingId;
         }
 
         function approveReview(reviewId) {
@@ -1470,6 +1595,124 @@ $counts = $stmt->get_result()->fetch_assoc();
                 notificationBadge.style.animation = 'pulse 2s infinite';
             }
             <?php endif; ?>
+
+            // ID validation
+            const idTypeSelect = document.getElementById('popup_id_type');
+            const idNumberInput = document.getElementById('popup_id_number');
+            const idFormatHint = document.getElementById('id-format-hint');
+            const idError = document.getElementById('id-error');
+            const verificationForm = document.getElementById('verificationForm');
+            
+            if (idTypeSelect && idNumberInput) {
+                // Show format hint based on selected ID type
+                idTypeSelect.addEventListener('change', function() {
+                    const selectedType = this.value;
+                    idNumberInput.value = ''; // Clear previous input
+                    idError.style.display = 'none';
+                    
+                    switch(selectedType) {
+                        case 'aadhar':
+                            idFormatHint.textContent = 'Enter a valid 12-digit Aadhar number (e.g., 123456789012)';
+                            idNumberInput.setAttribute('maxlength', '12');
+                            break;
+                        case 'pan':
+                            idFormatHint.textContent = 'Enter a valid 10-character PAN (e.g., ABCDE1234F)';
+                            idNumberInput.setAttribute('maxlength', '10');
+                            break;
+                        case 'voter':
+                            idFormatHint.textContent = 'Enter your Voter ID number (e.g., ABC1234567)';
+                            idNumberInput.setAttribute('maxlength', '10');
+                            break;
+                        case 'driving':
+                            idFormatHint.textContent = 'Enter your Driving License number (e.g., DL1420110012345)';
+                            idNumberInput.setAttribute('maxlength', '16');
+                            break;
+                        default:
+                            idFormatHint.textContent = '';
+                    }
+                });
+                
+                // Validate ID number based on type
+                idNumberInput.addEventListener('input', function() {
+                    const selectedType = idTypeSelect.value;
+                    const inputValue = this.value;
+                    let isValid = true;
+                    let errorMessage = '';
+                    
+                    switch(selectedType) {
+                        case 'aadhar':
+                            // Allow only numbers and validate length
+                            this.value = this.value.replace(/[^0-9]/g, '');
+                            isValid = /^[0-9]{12}$/.test(this.value);
+                            errorMessage = 'Aadhar must be exactly 12 digits';
+                            break;
+                            
+                        case 'pan':
+                            // Convert to uppercase and validate format (5 letters, 4 numbers, 1 letter)
+                            this.value = this.value.toUpperCase();
+                            isValid = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(this.value);
+                            errorMessage = 'PAN must be in format: ABCDE1234F';
+                            break;
+                            
+                        case 'voter':
+                            // Convert to uppercase and allow alphanumeric
+                            this.value = this.value.toUpperCase();
+                            isValid = /^[A-Z]{3}[0-9]{7}$/.test(this.value);
+                            errorMessage = 'Voter ID must be in format: ABC1234567';
+                            break;
+                            
+                        case 'driving':
+                            // Convert to uppercase and allow alphanumeric (format varies by state)
+                            this.value = this.value.toUpperCase();
+                            isValid = /^[A-Z0-9]{8,16}$/.test(this.value);
+                            errorMessage = 'Enter a valid Driving License number';
+                            break;
+                    }
+                    
+                    // Show/hide error message based on validation
+                    if (this.value && !isValid) {
+                        idError.textContent = errorMessage;
+                        idError.style.display = 'block';
+                    } else {
+                        idError.style.display = 'none';
+                    }
+                });
+                
+                // Validate before form submission
+                if (verificationForm) {
+                    verificationForm.addEventListener('submit', function(e) {
+                        const selectedType = idTypeSelect.value;
+                        const inputValue = idNumberInput.value;
+                        let isValid = true;
+                        
+                        if (!selectedType) {
+                            alert('Please select an ID type');
+                            e.preventDefault();
+                            return;
+                        }
+                        
+                        switch(selectedType) {
+                            case 'aadhar':
+                                isValid = /^[0-9]{12}$/.test(inputValue);
+                                break;
+                            case 'pan':
+                                isValid = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(inputValue);
+                                break;
+                            case 'voter':
+                                isValid = /^[A-Z]{3}[0-9]{7}$/.test(inputValue);
+                                break;
+                            case 'driving':
+                                isValid = /^[A-Z0-9]{8,16}$/.test(inputValue);
+                                break;
+                        }
+                        
+                        if (!isValid) {
+                            alert('Please enter a valid ID number based on the selected ID type');
+                            e.preventDefault();
+                        }
+                    });
+                }
+            }
         });
     </script>
 </body>

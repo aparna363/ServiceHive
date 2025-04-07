@@ -1,6 +1,10 @@
 <?php
+// Start session if not already started
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Attempt to start session with error handling
-session_start();
 if (!isset($_SESSION)) {
     // If session failed to start, clear session file and retry
     @session_destroy();
@@ -11,31 +15,7 @@ if (!isset($_SESSION)) {
 require_once 'dbconnect.php';
 $categories_query = "SELECT * FROM tbl_categories WHERE is_active = TRUE ORDER BY category_name";
 $categories = $conn->query($categories_query);
-// class SearchBar {
-//     private $sampleData = [
-//         'Cleaning',
-//         'Plumber',
-//         'Electrician',
-//         'Carpenter',
-//         'HouseKeeper',
-//         'Painting'
-//     ];
 
-//     public function handleSearch($searchTerm) {
-//         if (empty(trim($searchTerm))) {
-//             return ['results' => [], 'noResults' => false];
-//         }
-
-//         $filteredResults = array_filter($this->sampleData, function($item) use ($searchTerm) {
-//             return stripos($item, $searchTerm) !== false;
-//         });
-
-//         return [
-//             'results' => array_values($filteredResults),
-//             'noResults' => empty($filteredResults)
-//         ];
-//     }
-// }
 ?>
 
 <!DOCTYPE html>
@@ -560,6 +540,8 @@ $categories = $conn->query($categories_query);
     justify-content: center;
     align-items: center;
     z-index: 1001;
+    overflow-y: auto; /* Add this to allow scrolling */
+    padding: 20px; /* Add padding for better mobile experience */
 }
 
 .visit-modal .modal-content {
@@ -569,6 +551,9 @@ $categories = $conn->query($categories_query);
     width: 90%;
     max-width: 500px;
     position: relative;
+    max-height: 90vh; /* Limit height */
+    overflow-y: auto; /* Enable scrolling within modal */
+    margin: auto; /* Center the modal */
 }
 
 .visit-modal .close-modal {
@@ -653,8 +638,8 @@ $categories = $conn->query($categories_query);
     justify-content: center;
     align-items: center;
     z-index: 1001;
-    overflow-y: auto;
-    padding: 20px;
+    overflow-y: auto; /* Add this to allow scrolling */
+    padding: 20px; /* Add padding for better mobile experience */
 }
 
 .emergency-modal .modal-content {
@@ -664,9 +649,9 @@ $categories = $conn->query($categories_query);
     width: 90%;
     max-width: 500px;
     position: relative;
-    max-height: 90vh;
-    overflow-y: auto;
-    margin: auto;
+    max-height: 90vh; /* Limit height */
+    overflow-y: auto; /* Enable scrolling within modal */
+    margin: auto; /* Center the modal */
 }
 
 .emergency-modal .close-modal {
@@ -821,6 +806,8 @@ $categories = $conn->query($categories_query);
     justify-content: center;
     align-items: center;
     z-index: 1500;
+    overflow-y: auto; /* Add this to allow scrolling */
+    padding: 20px; /* Add padding for better mobile experience */
 }
 
 .review-modal.active {
@@ -937,6 +924,116 @@ $categories = $conn->query($categories_query);
 
 .book-button:hover {
     background: #218838;
+}
+
+/* Add this to your existing styles */
+.provider-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 5px;
+}
+
+.provider-card {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.provider-card:hover {
+    border-color: #ee6e06;
+    background-color: #fff9f5;
+}
+
+.provider-card.selected {
+    border-color: #ee6e06;
+    background-color: #fff9f5;
+    box-shadow: 0 0 0 2px rgba(238, 110, 6, 0.2);
+}
+
+.provider-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 15px;
+    font-weight: bold;
+    color: #666;
+    font-size: 18px;
+}
+
+.provider-info {
+    flex: 1;
+}
+
+.provider-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.provider-meta {
+    display: flex;
+    gap: 15px;
+    font-size: 14px;
+    color: #666;
+}
+
+.provider-rating {
+    color: #f39c12;
+}
+
+.provider-jobs {
+    color: #3498db;
+}
+
+.no-providers {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    background: #f9f9f9;
+    border-radius: 8px;
+}
+
+.loading-providers {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+}
+
+/* Add this to your existing CSS */
+.search-suggestion {
+    margin: 10px 0;
+    font-style: italic;
+    color: #555;
+}
+
+.search-suggestion a {
+    color: #007bff;
+    text-decoration: underline;
+    font-weight: bold;
+}
+
+.search-suggestion-header {
+    padding: 8px 10px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+    font-style: italic;
+    color: #555;
+}
+
+.search-suggestion-header a {
+    color: #007bff;
+    text-decoration: underline;
+    font-weight: bold;
 }
 </style>
 <body>
@@ -1184,7 +1281,8 @@ $categories = $conn->query($categories_query);
                 
                 <div class="form-group">
                     <label>Service Category</label>
-                    <select name="category_id" required>
+                    <select name="category_id" id="visit_category_id" required onchange="loadProviders('visit')">
+                        <option value="">Select a category</option>
                         <?php
                         // Reset the categories result pointer
                         $categories->data_seek(0);
@@ -1195,6 +1293,15 @@ $categories = $conn->query($categories_query);
                         <?php endwhile; ?>
                     </select>
                 </div>
+                
+                <div class="form-group" id="visit_provider_container" style="display: none;">
+                    <label>Select Provider</label>
+                    <div class="provider-list" id="visit_provider_list">
+                        <!-- Providers will be loaded here -->
+                    </div>
+                </div>
+                
+                <input type="hidden" name="provider_id" id="visit_provider_id" value="">
                 
                 <div class="form-group">
                     <label>Visit Date</label>
@@ -1262,7 +1369,8 @@ $categories = $conn->query($categories_query);
                 
                 <div class="form-group">
                     <label>Service Category</label>
-                    <select name="category_id" required>
+                    <select name="category_id" id="emergency_category_id" required onchange="loadProviders('emergency')">
+                        <option value="">Select a category</option>
                         <?php
                         // Reset the categories result pointer
                         $categories->data_seek(0);
@@ -1273,6 +1381,15 @@ $categories = $conn->query($categories_query);
                         <?php endwhile; ?>
                     </select>
                 </div>
+                
+                <div class="form-group" id="emergency_provider_container" style="display: none;">
+                    <label>Select Provider</label>
+                    <div class="provider-list" id="emergency_provider_list">
+                        <!-- Providers will be loaded here -->
+                    </div>
+                </div>
+                
+                <input type="hidden" name="provider_id" id="emergency_provider_id" value="">
                 
                 <div class="form-group">
                     <label>Your Name*</label>
@@ -1473,18 +1590,12 @@ function showVisitModal() {
     const modal = document.getElementById('visitModal');
     modal.style.display = 'flex';
     
-    // Prevent body scrolling when modal is open
-    document.body.style.overflow = 'hidden';
-    
     // Reset form if needed
     document.getElementById('visitForm').reset();
 }
 
 function closeVisitModal() {
     document.getElementById('visitModal').style.display = 'none';
-    
-    // Re-enable body scrolling
-    document.body.style.overflow = '';
 }
 
 // Close modal if user clicks outside the modal content
@@ -1496,6 +1607,14 @@ document.getElementById('visitModal').addEventListener('click', function(event) 
 
 function bookVisit() {
     const formData = new FormData(document.getElementById('visitForm'));
+    
+    // Check if provider is selected
+    const providerId = document.getElementById('visit_provider_id').value;
+    if (!providerId && document.getElementById('visit_provider_container').style.display !== 'none') {
+        alert('Please select a provider or we will assign one for you.');
+        // Set provider_id to 0 to indicate system should assign a provider
+        document.getElementById('visit_provider_id').value = '0';
+    }
     
     // Convert FormData to an object for JSON serialization
     const formDataObj = {};
@@ -1576,18 +1695,12 @@ function showEmergencyModal() {
     const modal = document.getElementById('emergencyModal');
     modal.style.display = 'flex';
     
-    // Prevent body scrolling when modal is open
-    document.body.style.overflow = 'hidden';
-    
     // Reset form if needed
     document.getElementById('emergencyForm').reset();
 }
 
 function closeEmergencyModal() {
     document.getElementById('emergencyModal').style.display = 'none';
-    
-    // Re-enable body scrolling
-    document.body.style.overflow = '';
 }
 
 // Close modal if user clicks outside the modal content
@@ -1599,6 +1712,14 @@ document.getElementById('emergencyModal').addEventListener('click', function(eve
 
 function bookEmergency() {
     const formData = new FormData(document.getElementById('emergencyForm'));
+    
+    // Check if provider is selected
+    const providerId = document.getElementById('emergency_provider_id').value;
+    if (!providerId && document.getElementById('emergency_provider_container').style.display !== 'none') {
+        alert('Please select a provider or we will assign one for you.');
+        // Set provider_id to 0 to indicate system should assign a provider
+        document.getElementById('emergency_provider_id').value = '0';
+    }
     
     // Convert FormData to an object for JSON serialization
     const formDataObj = {};
@@ -1837,191 +1958,390 @@ console.log('Review modal script loaded');
 </div>
 
 <script>
-// Search functionality
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
     const searchButton = document.getElementById('searchButton');
     const searchResults = document.getElementById('searchResults');
-    
-    // Function to perform search
-    function performSearch() {
-        const query = searchInput.value.trim();
-        
-        if (query.length < 2) {
-            searchResults.style.display = 'none';
+    let searchTimeout;
+
+    function displayResults(data) {
+        if (!data.success) {
+            searchResults.innerHTML = `
+                <div class="error">
+                    <p>${data.error || 'An error occurred while searching. Please try again.'}</p>
+                </div>`;
             return;
         }
-        
-        // Show loading indicator
-        searchResults.innerHTML = '<div class="loading" style="text-align: center; padding: 20px;">Searching...</div>';
+
+        if (data.results.length === 0) {
+            searchResults.innerHTML = `
+                <div class="no-results">
+                    <p>No results found</p>
+                    <div class="popular-searches">
+                        <h3>Popular Searches</h3>
+                        <div class="popular-tags">
+                            <a href="#" onclick="event.preventDefault(); document.getElementById('searchInput').value='Cleaning'; performSearch('Cleaning')">Cleaning</a>
+                            <a href="#" onclick="event.preventDefault(); document.getElementById('searchInput').value='Plumbing'; performSearch('Plumbing')">Plumbing</a>
+                            <a href="#" onclick="event.preventDefault(); document.getElementById('searchInput').value='Electrical'; performSearch('Electrical')">Electrical</a>
+                            <a href="#" onclick="event.preventDefault(); document.getElementById('searchInput').value='Painting'; performSearch('Painting')">Painting</a>
+                        </div>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        let resultsHtml = '<div class="search-results-container">';
+        data.results.forEach(service => {
+            resultsHtml += `
+                <div class="search-result-card">
+                    <div class="service-info">
+                        <h4>${service.service_name}</h4>
+                        <div class="service-meta">
+                            <span class="category">${service.category_name}</span>
+                            ${service.avg_rating > 0 ? 
+                                `<span class="rating">★ ${service.avg_rating}</span>` : 
+                                ''}
+                            <span class="price">₹${service.price}</span>
+                        </div>
+                    </div>
+                    <a href="service-details.php?service_id=${service.service_id}" class="book-now">Book Now</a>
+                </div>`;
+        });
+        resultsHtml += '</div>';
+        searchResults.innerHTML = resultsHtml;
+    }
+
+    function performSearch(query) {
+        // Show loading state
+        searchResults.innerHTML = '<div class="loading">Searching...</div>';
         searchResults.style.display = 'block';
-        
-        // Make AJAX request to search endpoint
-        fetch('search.php?query=' + encodeURIComponent(query))
+
+        // Make the API call
+        fetch(`search.php?query=${encodeURIComponent(query)}`)
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Network response was not ok: ' + response.status);
+                    throw new Error('Network response was not ok');
                 }
-                return response.json();
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error('Failed to parse response:', text);
+                        throw new Error('Invalid response from server');
+                    }
+                });
             })
             .then(data => {
-                console.log('Search results:', data);
-                
-                // Check if we have an exact match with a category
-                if (data.results && data.results.categories && data.results.categories.length > 0) {
-                    // Check if any category name exactly matches the search query (case insensitive)
-                    const exactMatch = data.results.categories.find(category => 
-                        category.category_name.toLowerCase() === query.toLowerCase()
-                    );
-                    
-                    if (exactMatch) {
-                        // Redirect to services.php with this category_id
-                        window.location.href = 'services.php?category_id=' + exactMatch.category_id;
-                        return;
-                    }
-                }
-                
-                // If no exact match, proceed with normal search results display
-                if (!data.results) {
-                    searchResults.innerHTML = '<div class="no-results">Invalid response format. Please try again.</div>';
-                    return;
-                }
-                
-                // Check if there are categories or services
-                const hasCategories = data.results.categories && data.results.categories.length > 0;
-                const hasServices = data.results.services && data.results.services.length > 0;
-                
-                if (!hasCategories && !hasServices) {
-                    // No results found
-                    searchResults.innerHTML = `
-                        <div class="no-results">
-                            <p>No results found for "${query}"</p>
-                            <div class="popular-searches">
-                                <h3>Popular Searches</h3>
-                                <div class="popular-tags">
-                                    <a href="search-results.php?query=Cleaning" class="popular-tag">Cleaning</a>
-                                    <a href="search-results.php?query=Plumbing" class="popular-tag">Plumbing</a>
-                                    <a href="search-results.php?query=Electrical" class="popular-tag">Electrical</a>
-                                    <a href="search-results.php?query=Painting" class="popular-tag">Painting</a>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    // Build results HTML
-                    let resultsHtml = '';
-                    
-                    // Categories section
-                    if (hasCategories) {
-                        resultsHtml += '<h3 style="padding: 10px; margin: 0; background: #f5f5f5;">Categories</h3>';
-                        data.results.categories.forEach(category => {
-                            resultsHtml += `
-                                <div class="search-result-card">
-                                    <div class="service-info">
-                                        <h4>${category.category_name}</h4>
-                                        <div class="service-meta">
-                                            <span>${category.service_count || 0} services</span>
-                                        </div>
-                                    </div>
-                                    <a href="services.php?category_id=${category.category_id}" class="book-now">View</a>
-                                </div>
-                            `;
-                        });
-                    }
-                    
-                    // Services section
-                    if (hasServices) {
-                        resultsHtml += '<h3 style="padding: 10px; margin: 0; background: #f5f5f5;">Services</h3>';
-                        data.results.services.forEach(service => {
-                            resultsHtml += `
-                                <div class="search-result-card">
-                                    <div class="service-info">
-                                        <h4>${service.service_name}</h4>
-                                        <div class="service-meta">
-                                            <span>${service.category_name}</span>
-                                            ${service.avg_rating ? `<span class="rating">★ ${service.avg_rating}</span>` : ''}
-                                        </div>
-                                    </div>
-                                    <a href="service-details.php?service_id=${service.service_id}" class="book-now">Book</a>
-                                </div>
-                            `;
-                        });
-                    }
-                    
-                    // Add a link to view all results
-                    resultsHtml += `
-                        <div class="view-all-results">
-                            <a href="search-results.php?query=${encodeURIComponent(query)}">View all results</a>
-                        </div>
-                    `;
-                    
-                    searchResults.innerHTML = resultsHtml;
-                }
+                displayResults(data);
             })
             .catch(error => {
                 console.error('Search error:', error);
-                searchResults.innerHTML = '<div class="no-results">Error searching. Please try again.</div>';
+                searchResults.innerHTML = `
+                    <div class="error">
+                        <p>An error occurred while searching. Please try again.</p>
+                        <p class="error-details">${error.message}</p>
+                    </div>`;
             });
     }
-    
-    // Handle search button click
+
+    // Search on input with debounce
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        clearTimeout(searchTimeout);
+        
+        if (query.length === 0) {
+            searchResults.style.display = 'none';
+            return;
+        }
+
+        if (query.length < 2) {
+            return;
+        }
+
+        searchTimeout = setTimeout(() => performSearch(query), 300);
+    });
+
+    // Search on button click
     searchButton.addEventListener('click', function() {
         const query = searchInput.value.trim();
         if (query.length >= 2) {
-            // First try to find an exact match with a category
-            fetch('search.php?query=' + encodeURIComponent(query) + '&exact=1')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.exact_match) {
-                        // Redirect to services.php with category_id
-                        window.location.href = 'services.php?category_id=' + data.exact_match;
-                    } else {
-                        // Otherwise, show search results
-                        performSearch();
-                    }
-                })
-                .catch(() => {
-                    performSearch();
-                });
+            performSearch(query);
         }
     });
-    
-    // Search on input after delay (debounce)
-    let searchTimeout;
-    searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(performSearch, 500);
-    });
-    
+
     // Search on Enter key
     searchInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
-            const query = searchInput.value.trim();
+            const query = this.value.trim();
             if (query.length >= 2) {
-                // First try to find an exact match with a category
-                fetch('search.php?query=' + encodeURIComponent(query) + '&exact=1')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.exact_match) {
-                            // Redirect to services.php with category_id
-                            window.location.href = 'services.php?category_id=' + data.exact_match;
-                        } else {
-                            // Otherwise, show search results
-                            performSearch();
-                        }
-                    })
-                    .catch(() => {
-                        performSearch();
-                    });
+                e.preventDefault();
+                performSearch(query);
             }
         }
     });
-    
+
     // Close search results when clicking outside
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.search-container')) {
             searchResults.style.display = 'none';
         }
     });
+
+    // Make performSearch available globally for the suggestion links
+    window.performSearch = performSearch;
 });
+</script>
+
+<script>
+// Add this to your existing JavaScript
+
+// Function to load providers based on selected category
+function loadProviders(type) {
+    const categoryId = document.getElementById(`${type}_category_id`).value;
+    const providerContainer = document.getElementById(`${type}_provider_container`);
+    const providerList = document.getElementById(`${type}_provider_list`);
+    
+    if (!categoryId) {
+        providerContainer.style.display = 'none';
+        return;
+    }
+    
+    // Show loading
+    providerContainer.style.display = 'block';
+    providerList.innerHTML = '<div class="loading-providers">Loading providers...</div>';
+    
+    // Fetch providers for the selected category
+    fetch(`get_providers.php?category_id=${categoryId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.providers && data.providers.length > 0) {
+                let providersHtml = '';
+                
+                data.providers.forEach(provider => {
+                    const initials = provider.name.split(' ').map(n => n[0]).join('').toUpperCase();
+                    providersHtml += `
+                        <div class="provider-card" data-provider-id="${provider.provider_id}" onclick="selectProvider('${type}', ${provider.provider_id})">
+                            <div class="provider-avatar">${initials}</div>
+                            <div class="provider-info">
+                                <div class="provider-name">${provider.name}</div>
+                                <div class="provider-meta">
+                                    ${provider.rating ? `<span class="provider-rating">★ ${provider.rating}</span>` : ''}
+                                    <span class="provider-jobs">${provider.completed_jobs || 0} jobs completed</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                providerList.innerHTML = providersHtml;
+            } else {
+                providerList.innerHTML = `
+                    <div class="no-providers">
+                        <p>No providers available for this category.</p>
+                        <p>We'll assign the best available provider for you.</p>
+                    </div>
+                `;
+                // Set provider_id to 0 to indicate system should assign a provider
+                document.getElementById(`${type}_provider_id`).value = '0';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading providers:', error);
+            providerList.innerHTML = `
+                <div class="no-providers">
+                    <p>Error loading providers. We'll assign the best available provider for you.</p>
+                </div>
+            `;
+            // Set provider_id to 0 to indicate system should assign a provider
+            document.getElementById(`${type}_provider_id`).value = '0';
+        });
+}
+
+// Function to select a provider
+function selectProvider(type, providerId) {
+    // Remove selected class from all provider cards
+    const providerCards = document.querySelectorAll(`#${type}_provider_list .provider-card`);
+    providerCards.forEach(card => card.classList.remove('selected'));
+    
+    // Add selected class to the clicked card
+    const selectedCard = document.querySelector(`#${type}_provider_list .provider-card[data-provider-id="${providerId}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('selected');
+    }
+    
+    // Set the provider ID in the hidden input
+    document.getElementById(`${type}_provider_id`).value = providerId;
+}
+
+// Update the existing bookVisit and bookEmergency functions to include provider_id
+function bookVisit() {
+    const formData = new FormData(document.getElementById('visitForm'));
+    
+    // Check if provider is selected
+    const providerId = document.getElementById('visit_provider_id').value;
+    if (!providerId && document.getElementById('visit_provider_container').style.display !== 'none') {
+        alert('Please select a provider or we will assign one for you.');
+        // Set provider_id to 0 to indicate system should assign a provider
+        document.getElementById('visit_provider_id').value = '0';
+    }
+    
+    // Convert FormData to an object for JSON serialization
+    const formDataObj = {};
+    formData.forEach((value, key) => {
+        formDataObj[key] = value;
+    });
+    
+    // Debug - Log form data
+    console.log('Form data being sent:', formDataObj);
+    
+    // First, create a server-side order
+    fetch('create_order.php', {
+        method: 'POST',
+        body: JSON.stringify({
+            amount: 199 * 100, // Convert to paisa (₹199)
+            type: 'visit',
+            formData: formDataObj
+        }),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        // First check if the response is ok
+        if (!response.ok) {
+            return response.json().then(error => {
+                throw new Error(`Server Error: ${error.message || 'Unknown error'}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Initialize Razorpay payment
+            const options = {
+                key: data.key_id,
+                amount: data.amount,
+                currency: "INR",
+                name: "ServiceHive",
+                description: "Technical Visit Fee",
+                order_id: data.order_id,
+                handler: function (response) {
+                    verifyPayment(response, 'visit', data.booking_id);
+                },
+                prefill: {
+                    name: data.user_name || '',
+                    email: data.user_email || '',
+                    contact: data.user_phone || ''
+                },
+                notes: {
+                    booking_id: data.booking_id,
+                    type: 'visit'
+                },
+                theme: {
+                    color: "#ee6e06"
+                }
+            };
+            
+            const razorpay = new Razorpay(options);
+            razorpay.open();
+            
+            closeVisitModal();
+        } else {
+            // Improved error handling for server errors
+            const errorMessage = data.message || 'Unknown server error';
+            console.error(`Server error: ${errorMessage}`);
+            alert(`Error: ${errorMessage}`);
+        }
+    })
+    .catch(error => {
+        console.error(error.message);
+        alert(error.message);
+    });
+}
+
+function bookEmergency() {
+    const formData = new FormData(document.getElementById('emergencyForm'));
+    
+    // Check if provider is selected
+    const providerId = document.getElementById('emergency_provider_id').value;
+    if (!providerId && document.getElementById('emergency_provider_container').style.display !== 'none') {
+        alert('Please select a provider or we will assign one for you.');
+        // Set provider_id to 0 to indicate system should assign a provider
+        document.getElementById('emergency_provider_id').value = '0';
+    }
+    
+    // Convert FormData to an object for JSON serialization
+    const formDataObj = {};
+    formData.forEach((value, key) => {
+        formDataObj[key] = value;
+    });
+    
+    // Debug - Log form data
+    console.log('Emergency form data being sent:', formDataObj);
+    
+    // First, create a server-side order
+    fetch('create_order.php', {
+        method: 'POST',
+        body: JSON.stringify({
+            amount: 299 * 100, // Convert to paisa (₹299)
+            type: 'emergency',
+            formData: formDataObj
+        }),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        // First check if the response is ok
+        if (!response.ok) {
+            return response.json().then(error => {
+                throw new Error(`Server Error: ${error.message || 'Unknown error'}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Initialize Razorpay payment
+            const options = {
+                key: data.key_id,
+                amount: data.amount,
+                currency: "INR",
+                name: "ServiceHive",
+                description: "Emergency Service Fee",
+                order_id: data.order_id,
+                handler: function (response) {
+                    verifyPayment(response, 'emergency', data.booking_id);
+                },
+                prefill: {
+                    name: data.user_name || '',
+                    email: data.user_email || '',
+                    contact: data.user_phone || ''
+                },
+                notes: {
+                    booking_id: data.booking_id,
+                    type: 'emergency'
+                },
+                theme: {
+                    color: "#e53e3e"
+                }
+            };
+            
+            const razorpay = new Razorpay(options);
+            razorpay.open();
+            
+            closeEmergencyModal();
+        } else {
+            // Improved error handling for server errors
+            const errorMessage = data.message || 'Unknown server error';
+            console.error(`Server error: ${errorMessage}`);
+            alert(`Error: ${errorMessage}`);
+        }
+    })
+    .catch(error => {
+        console.error(error.message);
+        alert(error.message);
+    });
+}
+</script>
 </script>

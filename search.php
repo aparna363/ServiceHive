@@ -1,93 +1,120 @@
 <?php
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Start session
-session_start();
-
-// Database connection
-require_once 'dbconnect.php';
-
-// Get search query
-$query = isset($_GET['query']) ? trim($_GET['query']) : '';
-$exact = isset($_GET['exact']) && $_GET['exact'] == '1';
-$response = ['results' => []];
-
-try {
-    if (!empty($query)) {
-        // Check for exact match with category if exact flag is set
-        if ($exact) {
-            $exactQuery = "SELECT category_id FROM tbl_categories 
-                          WHERE LOWER(category_name) = LOWER(?) AND is_active = TRUE 
-                          LIMIT 1";
-            $stmt = $conn->prepare($exactQuery);
-            $stmt->bind_param("s", $query);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            
-            if ($row = $result->fetch_assoc()) {
-                $response['exact_match'] = $row['category_id'];
-                header('Content-Type: application/json');
-                echo json_encode($response);
-                exit;
-            }
-        }
-        
-        // Search in categories
-        $categoriesQuery = "SELECT c.*, 
-                           (SELECT COUNT(*) FROM tbl_services WHERE category_id = c.category_id AND is_active = TRUE) as service_count 
-                           FROM tbl_categories c 
-                           WHERE c.category_name LIKE ? AND c.is_active = TRUE 
-                           ORDER BY c.category_name 
-                           LIMIT 5";
-        
-        $stmt = $conn->prepare($categoriesQuery);
-        $searchParam = "%{$query}%";
-        $stmt->bind_param("s", $searchParam);
-        $stmt->execute();
-        $categoriesResult = $stmt->get_result();
-        
-        $categories = [];
-        while ($row = $categoriesResult->fetch_assoc()) {
-            $categories[] = $row;
-        }
-        
-        // Search in services
-        $servicesQuery = "SELECT s.*, c.category_name,
-                         (SELECT AVG(rating) FROM tbl_reviews WHERE service_id = s.service_id) as avg_rating
-                         FROM tbl_services s
-                         JOIN tbl_categories c ON s.category_id = c.category_id
-                         WHERE (s.service_name LIKE ? OR s.description LIKE ?) 
-                              AND s.is_active = TRUE 
-                         ORDER BY s.service_name
-                         LIMIT 5";
-        
-        $stmt = $conn->prepare($servicesQuery);
-        $stmt->bind_param("ss", $searchParam, $searchParam);
-        $stmt->execute();
-        $servicesResult = $stmt->get_result();
-        
-        $services = [];
-        while ($row = $servicesResult->fetch_assoc()) {
-            // Format avg_rating to one decimal place if not null
-            if ($row['avg_rating'] !== null) {
-                $row['avg_rating'] = number_format($row['avg_rating'], 1);
-            }
-            $services[] = $row;
-        }
-        
-        // Combine results
-        $response['results'] = [
-            'categories' => $categories,
-            'services' => $services
-        ];
-    }
-} catch (Exception $e) {
-    $response['error'] = "Error searching: " . $e->getMessage();
+// Start session if not already started
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
 }
 
-// Return JSON response
+// Include database connection
+require_once 'dbconnect.php';
+
+// Set headers
 header('Content-Type: application/json');
+
+// Initialize response array
+$response = [
+    'success' => false,
+    'results' => [],
+    'error' => null
+];
+
+try {
+    // Get search query
+    $query = isset($_GET['query']) ? trim($_GET['query']) : '';
+
+    if (empty($query)) {
+        // Return popular services if no query
+        $sql = "SELECT 
+                s.service_id,
+                s.service_name,
+                s.description,
+                s.price,
+                c.category_name,
+                COALESCE(AVG(r.rating), 0) as avg_rating
+            FROM tbl_services s
+            JOIN tbl_categories c ON s.category_id = c.category_id
+            LEFT JOIN tbl_reviews r ON s.service_id = r.service_id
+            WHERE s.is_active = TRUE
+            GROUP BY s.service_id
+            ORDER BY avg_rating DESC
+            LIMIT 10";
+        
+        $result = $conn->query($sql);
+        
+        if ($result === false) {
+            throw new Exception($conn->error);
+        }
+        
+        while ($row = $result->fetch_assoc()) {
+            $response['results'][] = [
+                'service_id' => $row['service_id'],
+                'service_name' => $row['service_name'],
+                'description' => $row['description'],
+                'price' => $row['price'],
+                'category_name' => $row['category_name'],
+                'avg_rating' => number_format($row['avg_rating'], 1)
+            ];
+        }
+    } else {
+        // Search query
+        $sql = "SELECT 
+                s.service_id,
+                s.service_name,
+                s.description,
+                s.price,
+                c.category_name,
+                COALESCE(AVG(r.rating), 0) as avg_rating
+            FROM tbl_services s
+            JOIN tbl_categories c ON s.category_id = c.category_id
+            LEFT JOIN tbl_reviews r ON s.service_id = r.service_id
+            WHERE s.is_active = TRUE 
+            AND (
+                LOWER(s.service_name) LIKE LOWER(?) OR
+                LOWER(s.description) LIKE LOWER(?) OR
+                LOWER(c.category_name) LIKE LOWER(?)
+            )
+            GROUP BY s.service_id
+            ORDER BY 
+                CASE 
+                    WHEN LOWER(s.service_name) LIKE LOWER(?) THEN 1
+                    WHEN LOWER(c.category_name) LIKE LOWER(?) THEN 2
+                    ELSE 3
+                END,
+                avg_rating DESC
+            LIMIT 20";
+
+        $searchTerm = "%{$query}%";
+        $stmt = $conn->prepare($sql);
+        
+        if ($stmt === false) {
+            throw new Exception($conn->error);
+        }
+        
+        $stmt->bind_param('sssss', $searchTerm, $searchTerm, $searchTerm, $searchTerm, $searchTerm);
+        
+        if (!$stmt->execute()) {
+            throw new Exception($stmt->error);
+        }
+        
+        $result = $stmt->get_result();
+        
+        while ($row = $result->fetch_assoc()) {
+            $response['results'][] = [
+                'service_id' => $row['service_id'],
+                'service_name' => $row['service_name'],
+                'description' => $row['description'],
+                'price' => $row['price'],
+                'category_name' => $row['category_name'],
+                'avg_rating' => number_format($row['avg_rating'], 1)
+            ];
+        }
+    }
+    
+    $response['success'] = true;
+
+} catch (Exception $e) {
+    $response['error'] = 'An error occurred while searching. Please try again.';
+    error_log("Search error: " . $e->getMessage());
+}
+
 echo json_encode($response);
-?> 
+exit; 

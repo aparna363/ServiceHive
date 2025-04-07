@@ -233,6 +233,7 @@ try {
             id INT AUTO_INCREMENT,
             user_id INT,
             email VARCHAR(100),
+            google_id VARCHAR(100),
             ip_address VARCHAR(50),
             user_agent TEXT,
             status VARCHAR(50),
@@ -278,41 +279,93 @@ try {
             INDEX idx_status (status)
         )",
         
+    'support_tickets' => "CREATE TABLE IF NOT EXISTS support_tickets (
+            ticket_id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            subject VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            status ENUM('Open', 'Replied', 'Closed') DEFAULT 'Open',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            admin_reply TEXT NULL,
+            replied_at TIMESTAMP NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )",
+
+        'contact_messages' => "CREATE TABLE IF NOT EXISTS contact_messages (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) NOT NULL,
+            phone VARCHAR(50) NULL,
+            subject VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status ENUM('new', 'read', 'replied') DEFAULT 'new'
+        )",
+
         'visit_bookings' => "CREATE TABLE IF NOT EXISTS visit_bookings (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT,
-            category_id INT,
-            visit_date DATE,
-            visit_time TIME,
-            address TEXT,
+            user_id INT NOT NULL,
+            category_id INT NULL,
+            visit_date DATE NOT NULL,
+            visit_time TIME NOT NULL,
+            address TEXT NOT NULL,
             notes TEXT,
             reference VARCHAR(20) UNIQUE,
             status ENUM('pending', 'confirmed', 'completed', 'cancelled') DEFAULT 'pending',
-            amount INT,
+            amount DECIMAL(10, 2) NOT NULL,
             payment_status ENUM('pending', 'paid', 'refunded', 'failed') DEFAULT 'pending',
             razorpay_order_id VARCHAR(100),
             razorpay_payment_id VARCHAR(100),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            payment_date TIMESTAMP NULL
+            payment_date TIMESTAMP NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id) REFERENCES tbl_categories(category_id) ON DELETE SET NULL,
+            INDEX idx_visit_user (user_id),
+            INDEX idx_visit_category (category_id),
+            INDEX idx_visit_status (status),
+            INDEX idx_visit_payment_status (payment_status)
         )",
-        
+
         'emergency_bookings' => "CREATE TABLE IF NOT EXISTS emergency_bookings (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT,
-            category_id INT,
-            address TEXT,
-            issue_description TEXT,
-            name VARCHAR(100),
-            email VARCHAR(100),
-            phone VARCHAR(20),
+            user_id INT NOT NULL,
+            category_id INT NULL,
+            address TEXT NOT NULL,
+            issue_description TEXT NOT NULL,
+            name VARCHAR(100) NOT NULL,
+            email VARCHAR(100) NOT NULL,
+            phone VARCHAR(20) NOT NULL,
             reference VARCHAR(20) UNIQUE,
-            status ENUM('pending', 'confirmed', 'completed', 'cancelled') DEFAULT 'pending',
-            amount INT,
+            status ENUM('pending', 'assigned', 'in_progress', 'completed', 'cancelled') DEFAULT 'pending',
+            amount DECIMAL(10, 2) NOT NULL,
             payment_status ENUM('pending', 'paid', 'refunded', 'failed') DEFAULT 'pending',
             razorpay_order_id VARCHAR(100),
             razorpay_payment_id VARCHAR(100),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            payment_date TIMESTAMP NULL
+            payment_date TIMESTAMP NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id) REFERENCES tbl_categories(category_id) ON DELETE SET NULL,
+            INDEX idx_emergency_user (user_id),
+            INDEX idx_emergency_category (category_id),
+            INDEX idx_emergency_status (status),
+            INDEX idx_emergency_payment_status (payment_status)
+        )",
+
+        'service_addresses' => "CREATE TABLE IF NOT EXISTS service_addresses (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            address TEXT NOT NULL,
+            city VARCHAR(100) NOT NULL,
+            state VARCHAR(100) NOT NULL,
+            postal_code VARCHAR(10) NOT NULL,
+            is_default BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_user_default (user_id, is_default)
         )"
     ];
 
@@ -339,9 +392,16 @@ try {
         "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)",
         "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_amount DECIMAL(10,2)",
         "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2) DEFAULT NULL AFTER total_amount",
-        "ALTER TABLE cart ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending'",
         "ALTER TABLE cart DROP INDEX IF EXISTS unique_user_service",
-        "ALTER TABLE cart ADD UNIQUE KEY IF NOT EXISTS unique_user_service_status (user_id, sub_service_id, status)"
+        "ALTER TABLE tbl_sub_services ADD COLUMN IF NOT EXISTS estimated_duration INT DEFAULT 60 NOT NULL",
+        "ALTER TABLE bookings MODIFY COLUMN time_slot TIME NOT NULL",
+        "ALTER TABLE bookings ADD INDEX IF NOT EXISTS idx_time_availability (provider_id, booking_date, time_slot, status)",
+        "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS address_id INT AFTER user_id",
+        "ALTER TABLE bookings ADD FOREIGN KEY IF NOT EXISTS (address_id) REFERENCES service_addresses(id)",
+        "ALTER TABLE bookings DROP FOREIGN KEY IF EXISTS bookings_ibfk_2",
+        "ALTER TABLE bookings CHANGE COLUMN address_id address_id INT",
+        "ALTER TABLE bookings ADD CONSTRAINT bookings_ibfk_2 FOREIGN KEY (address_id) REFERENCES service_addresses(id)",
+        "ALTER TABLE login_logs ADD COLUMN IF NOT EXISTS google_id VARCHAR(100) AFTER email"
     ];
 
     foreach ($alter_queries as $query) {
@@ -352,17 +412,18 @@ try {
 
     // Add missing columns and modify existing ones in payments table
     $alter_payment_queries = [
+        // Ensure booking_type column exists and includes 'visit', 'emergency'
+        "ALTER TABLE payments MODIFY COLUMN booking_type ENUM('regular', 'visit', 'emergency') DEFAULT 'regular'",
+        // Add booking_id column if it doesn't exist (it should, but good practice)
+        "ALTER TABLE payments ADD COLUMN IF NOT EXISTS booking_id INT NOT NULL AFTER id",
         // Add booking_type column if it doesn't exist
         "ALTER TABLE payments ADD COLUMN IF NOT EXISTS booking_type ENUM('regular', 'visit', 'emergency') DEFAULT 'regular' AFTER booking_id",
-        
         // Add indexes if they don't exist
         "ALTER TABLE payments ADD INDEX IF NOT EXISTS idx_booking (booking_id, booking_type)",
         "ALTER TABLE payments ADD INDEX IF NOT EXISTS idx_status (status)",
         "ALTER TABLE payments ADD INDEX IF NOT EXISTS idx_payment_date (payment_date)",
-        
-        // Modify status enum if needed
+        // Modify status enum if needed (already done above, but keep for safety)
         "ALTER TABLE payments MODIFY COLUMN status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'pending'",
-        
         // Add timestamps if they don't exist
         "ALTER TABLE payments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         "ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
@@ -373,6 +434,35 @@ try {
         if (!$conn->query($query)) {
             echo "Error executing alter query: " . $conn->error . "<br>";
         }
+    }
+
+    // Add working hours columns if they don't exist
+    $alterTableQuery = "
+        ALTER TABLE service_providers
+        ADD COLUMN IF NOT EXISTS working_hours_start TIME DEFAULT '09:00:00',
+        ADD COLUMN IF NOT EXISTS working_hours_end TIME DEFAULT '17:00:00'
+    ";
+
+    try {
+        if (!$conn->query($alterTableQuery)) {
+            error_log("Error adding working hours columns: " . $conn->error);
+        }
+    } catch (Exception $e) {
+        error_log("Exception while adding working hours columns: " . $e->getMessage());
+    }
+
+    // Add district column to service_addresses table
+    $alter_service_addresses_query = "
+        ALTER TABLE service_addresses
+        ADD COLUMN IF NOT EXISTS district VARCHAR(100) NOT NULL AFTER address
+    ";
+
+    try {
+        if (!$conn->query($alter_service_addresses_query)) {
+            error_log("Error adding district column: " . $conn->error);
+        }
+    } catch (Exception $e) {
+        error_log("Exception while adding district column: " . $e->getMessage());
     }
 
     // Re-enable foreign key checks

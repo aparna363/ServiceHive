@@ -1092,3 +1092,169 @@ Stack trace:
 [26-Mar-2025 21:23:44 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=33
 [26-Mar-2025 21:23:44 Europe/Berlin] Affected rows: 1
 [26-Mar-2025 21:23:50 Europe/Berlin] Email to aparnaprasad1109@gmail.com sent successfully
+[27-Mar-2025 08:51:49 Europe/Berlin] [2025-03-27 08:51:49] Processing verification for provider ID: 34
+[27-Mar-2025 08:51:49 Europe/Berlin] [2025-03-27 08:51:49] Form data: ID Type: aadhar, ID Number: 123456789012
+[27-Mar-2025 08:51:49 Europe/Berlin] [2025-03-27 08:51:49] Uploading ID front to: uploads/verification/1743061909_front_aadhar demo.png
+[27-Mar-2025 08:51:49 Europe/Berlin] [2025-03-27 08:51:49] Uploading ID back to: uploads/verification/1743061909_back_aadhar demo.png
+[27-Mar-2025 08:51:49 Europe/Berlin] [2025-03-27 08:51:49] Uploading address proof to: uploads/verification/1743061909_address_aadhar demo.png
+[27-Mar-2025 08:51:49 Europe/Berlin] [2025-03-27 08:51:49] All uploads successful, saving to database
+[27-Mar-2025 08:51:49 Europe/Berlin] [2025-03-27 08:51:49] Verification documents saved successfully
+[27-Mar-2025 08:51:54 Europe/Berlin] Verification email sent to admin for provider: aparna
+[27-Mar-2025 08:52:16 Europe/Berlin] Verification details for provider 34: Array
+(
+    [provider_id] => 34
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => aparna
+    [email] => aparnaprasad1109@gmail.com
+    [has_documents] => 1
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [id_proof_front] => uploads/verification/1743061909_front_aadhar demo.png
+    [id_proof_back] => uploads/verification/1743061909_back_aadhar demo.png
+    [address_proof] => uploads/verification/1743061909_address_aadhar demo.png
+    [uploaded_at] => 2025-03-27 13:21:49
+    [id_front_path] => uploads/verification/1743061909_front_aadhar demo.png
+    [id_back_path] => uploads/verification/1743061909_back_aadhar demo.png
+    [address_proof_path] => uploads/verification/1743061909_address_aadhar demo.png
+)
+
+[27-Mar-2025 08:52:27 Europe/Berlin] Updating verification status for provider 34 to approved
+[27-Mar-2025 08:52:27 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=34
+[27-Mar-2025 08:52:27 Europe/Berlin] Affected rows: 1
+[27-Mar-2025 08:52:34 Europe/Berlin] Email to aparnaprasad1109@gmail.com sent successfully
+[27-Mar-2025 08:52:35 Europe/Berlin] Updating verification status for provider 34 to approved
+[27-Mar-2025 08:52:35 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=34
+[27-Mar-2025 08:52:35 Europe/Berlin] Affected rows: 0
+[27-Mar-2025 08:52:35 Europe/Berlin] Provider record exists but wasn't updated: Array
+(
+    [provider_id] => 34
+    [user_id] => 38
+    [category_id] => 4
+    [business_name] => 
+    [description] => 
+    [verified_status] => 1
+    [certifications] => 
+    [availability] => 
+    [rating] => 0.00
+    [total_reviews] => 0
+    [status] => approved
+    [created_at] => 2025-03-27 13:11:11
+    [updated_at] => 2025-03-27 13:22:27
+    [id_type] => 
+    [license_number] => 
+    [id_number] => 
+    [id_verified] => 0
+    [id_proof_status] => pending
+    [id_proof_front] => 
+    [id_proof_back] => 
+    [address_proof] => 
+    [documents_uploaded] => pending
+)
+
+[27-Mar-2025 08:52:52 Europe/Berlin] Email to aparnaprasad1109@gmail.com sent successfully
+[29-Mar-2025 17:27:51 Europe/Berlin] [2025-03-29 17:27:51] Processing verification for provider ID: 35
+[29-Mar-2025 17:27:51 Europe/Berlin] [2025-03-29 17:27:51] Form data: ID Type: aadhar, ID Number: AAAP51A23FG2
+[29-Mar-2025 17:27:51 Europe/Berlin] [2025-03-29 17:27:51] Uploading ID front to: uploads/verification/1743265671_front_aadhar demo.png
+[29-Mar-2025 17:27:51 Europe/Berlin] [2025-03-29 17:27:51] Uploading ID back to: uploads/verification/1743265671_back_aadhar demo.png
+[29-Mar-2025 17:27:51 Europe/Berlin] [2025-03-29 17:27:51] Uploading address proof to: uploads/verification/1743265671_address_aadhar demo.png
+[29-Mar-2025 17:27:51 Europe/Berlin] [2025-03-29 17:27:51] All uploads successful, saving to database
+[29-Mar-2025 17:27:51 Europe/Berlin] [2025-03-29 17:27:51] Verification documents saved successfully
+[29-Mar-2025 17:27:56 Europe/Berlin] Verification email sent to admin for provider: aparna
+[29-Mar-2025 17:31:19 Europe/Berlin] [2025-03-29 17:31:19] Processing verification for provider ID: 36
+[29-Mar-2025 17:31:19 Europe/Berlin] [2025-03-29 17:31:19] Form data: ID Type: aadhar, ID Number: 456239874563
+[29-Mar-2025 17:31:19 Europe/Berlin] [2025-03-29 17:31:19] Uploading ID front to: uploads/verification/1743265879_front_aadhar demo.png
+[29-Mar-2025 17:31:19 Europe/Berlin] [2025-03-29 17:31:19] Uploading ID back to: uploads/verification/1743265879_back_aadhar demo.png
+[29-Mar-2025 17:31:19 Europe/Berlin] [2025-03-29 17:31:19] Uploading address proof to: uploads/verification/1743265879_address_aadhar demo.png
+[29-Mar-2025 17:31:19 Europe/Berlin] [2025-03-29 17:31:19] All uploads successful, saving to database
+[29-Mar-2025 17:31:19 Europe/Berlin] [2025-03-29 17:31:19] Verification documents saved successfully
+[29-Mar-2025 17:31:40 Europe/Berlin] Verification email sent to admin for provider: aparna
+[29-Mar-2025 17:32:02 Europe/Berlin] Verification details for provider 36: Array
+(
+    [provider_id] => 36
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => aparna
+    [email] => aparnaprasad1109@gmail.com
+    [has_documents] => 1
+    [id_type] => aadhar
+    [id_number] => 456239874563
+    [id_proof_front] => uploads/verification/1743265879_front_aadhar demo.png
+    [id_proof_back] => uploads/verification/1743265879_back_aadhar demo.png
+    [address_proof] => uploads/verification/1743265879_address_aadhar demo.png
+    [uploaded_at] => 2025-03-29 22:01:19
+    [id_front_path] => uploads/verification/1743265879_front_aadhar demo.png
+    [id_back_path] => uploads/verification/1743265879_back_aadhar demo.png
+    [address_proof_path] => uploads/verification/1743265879_address_aadhar demo.png
+)
+
+[29-Mar-2025 17:32:04 Europe/Berlin] Updating verification status for provider 36 to approved
+[29-Mar-2025 17:32:04 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=36
+[29-Mar-2025 17:32:04 Europe/Berlin] Affected rows: 1
+[29-Mar-2025 17:32:10 Europe/Berlin] Email to aparnaprasad1109@gmail.com sent successfully
+[31-Mar-2025 21:29:31 Europe/Berlin] [2025-03-31 21:29:31] Processing verification for provider ID: 37
+[31-Mar-2025 21:29:31 Europe/Berlin] [2025-03-31 21:29:31] Form data: ID Type: aadhar, ID Number: 123456789012
+[31-Mar-2025 21:29:31 Europe/Berlin] [2025-03-31 21:29:31] Uploading ID front to: uploads/verification/1743449371_front_aadhar demo.png
+[31-Mar-2025 21:29:31 Europe/Berlin] [2025-03-31 21:29:31] Uploading ID back to: uploads/verification/1743449371_back_aadhar demo.png
+[31-Mar-2025 21:29:31 Europe/Berlin] [2025-03-31 21:29:31] Uploading address proof to: uploads/verification/1743449371_address_aadhar demo.png
+[31-Mar-2025 21:29:31 Europe/Berlin] [2025-03-31 21:29:31] All uploads successful, saving to database
+[31-Mar-2025 21:29:31 Europe/Berlin] [2025-03-31 21:29:31] Verification documents saved successfully
+[31-Mar-2025 21:29:36 Europe/Berlin] Verification email sent to admin for provider: aparna
+[31-Mar-2025 21:30:17 Europe/Berlin] Verification details for provider 37: Array
+(
+    [provider_id] => 37
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => aparna
+    [email] => aparnaprasad1109@gmail.com
+    [has_documents] => 1
+    [id_type] => aadhar
+    [id_number] => 123456789012
+    [id_proof_front] => uploads/verification/1743449371_front_aadhar demo.png
+    [id_proof_back] => uploads/verification/1743449371_back_aadhar demo.png
+    [address_proof] => uploads/verification/1743449371_address_aadhar demo.png
+    [uploaded_at] => 2025-04-01 00:59:31
+    [id_front_path] => uploads/verification/1743449371_front_aadhar demo.png
+    [id_back_path] => uploads/verification/1743449371_back_aadhar demo.png
+    [address_proof_path] => uploads/verification/1743449371_address_aadhar demo.png
+)
+
+[31-Mar-2025 21:30:18 Europe/Berlin] Updating verification status for provider 37 to approved
+[31-Mar-2025 21:30:18 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=37
+[31-Mar-2025 21:30:18 Europe/Berlin] Affected rows: 1
+[31-Mar-2025 21:30:25 Europe/Berlin] Email to aparnaprasad1109@gmail.com sent successfully
+[05-Apr-2025 18:36:05 Europe/Berlin] [2025-04-05 18:36:05] Processing verification for provider ID: 35
+[05-Apr-2025 18:36:05 Europe/Berlin] [2025-04-05 18:36:05] Form data: ID Type: pan, ID Number: ABCDE1234G
+[05-Apr-2025 18:36:05 Europe/Berlin] [2025-04-05 18:36:05] Uploading ID front to: uploads/verification/1743870965_front_pan-card.webp
+[05-Apr-2025 18:36:05 Europe/Berlin] [2025-04-05 18:36:05] Uploading ID back to: uploads/verification/1743870965_back_pan-card.webp
+[05-Apr-2025 18:36:05 Europe/Berlin] [2025-04-05 18:36:05] Uploading address proof to: uploads/verification/1743870965_address_pan-card.webp
+[05-Apr-2025 18:36:05 Europe/Berlin] [2025-04-05 18:36:05] All uploads successful, saving to database
+[05-Apr-2025 18:36:05 Europe/Berlin] [2025-04-05 18:36:05] Verification documents saved successfully
+[05-Apr-2025 18:36:12 Europe/Berlin] Verification email sent to admin for provider: aparna
+[05-Apr-2025 18:36:43 Europe/Berlin] Verification details for provider 35: Array
+(
+    [provider_id] => 35
+    [business_name] => 
+    [status] => pending
+    [verified_status] => 0
+    [username] => aparna
+    [email] => aparnaprasad1109@gmail.com
+    [has_documents] => 1
+    [id_type] => pan
+    [id_number] => ABCDE1234G
+    [id_proof_front] => uploads/verification/1743870965_front_pan-card.webp
+    [id_proof_back] => uploads/verification/1743870965_back_pan-card.webp
+    [address_proof] => uploads/verification/1743870965_address_pan-card.webp
+    [uploaded_at] => 2025-04-05 22:06:05
+    [id_front_path] => uploads/verification/1743870965_front_pan-card.webp
+    [id_back_path] => uploads/verification/1743870965_back_pan-card.webp
+    [address_proof_path] => uploads/verification/1743870965_address_pan-card.webp
+)
+
+[05-Apr-2025 18:36:48 Europe/Berlin] Updating verification status for provider 35 to approved
+[05-Apr-2025 18:36:48 Europe/Berlin] Updating service_providers table: status=approved, verified_status=1 for provider_id=35
+[05-Apr-2025 18:36:48 Europe/Berlin] Affected rows: 1
+[05-Apr-2025 18:36:55 Europe/Berlin] Email to aparnaprasad1109@gmail.com sent successfully

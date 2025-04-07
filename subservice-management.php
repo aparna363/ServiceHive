@@ -64,12 +64,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
+                // Calculate total duration in minutes
+                $days = isset($_POST['duration_days']) ? intval($_POST['duration_days']) : 0;
+                $hours = isset($_POST['duration_hours']) ? intval($_POST['duration_hours']) : 1;
+                $minutes = isset($_POST['duration_minutes']) ? intval($_POST['duration_minutes']) : 0;
+                $total_minutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
+
+                // Ensure minimum duration
+                if ($total_minutes < 5) {
+                    $_SESSION['error_msg'] = "Duration must be at least 5 minutes.";
+                    header('Location: subservice-management.php');
+                    exit();
+                }
+
                 $stmt = $conn->prepare("
                     INSERT INTO tbl_sub_services 
-                    (service_id, sub_service_name, price, description, images) 
-                    VALUES (?, ?, ?, ?, ?)
+                    (service_id, sub_service_name, price, description, images, estimated_duration) 
+                    VALUES (?, ?, ?, ?, ?, ?)
                 ");
-                $stmt->bind_param("issds", $service_id, $sub_service_name, $price, $description, $images);
+                $stmt->bind_param("issdsi", $service_id, $sub_service_name, $price, $description, $images, $total_minutes);
                 
 if ($stmt->execute()) {
     error_log("Sub-service added successfully: " . $sub_service_name);
@@ -99,12 +112,25 @@ if ($stmt->execute()) {
                     }
                 }
 
+                // Calculate total duration in minutes
+                $days = isset($_POST['duration_days']) ? intval($_POST['duration_days']) : 0;
+                $hours = isset($_POST['duration_hours']) ? intval($_POST['duration_hours']) : 1;
+                $minutes = isset($_POST['duration_minutes']) ? intval($_POST['duration_minutes']) : 0;
+                $total_minutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
+
+                // Ensure minimum duration
+                if ($total_minutes < 5) {
+                    $_SESSION['error_msg'] = "Duration must be at least 5 minutes.";
+                    header('Location: subservice-management.php');
+                    exit();
+                }
+
                 $stmt = $conn->prepare("
                     UPDATE tbl_sub_services 
-                    SET sub_service_name = ?, price = ?, description = ?, images = ?
+                    SET sub_service_name = ?, price = ?, description = ?, images = ?, estimated_duration = ?
                     WHERE sub_service_id = ?
                 ");
-                $stmt->bind_param("sdssi", $sub_service_name, $price, $description, $images, $sub_service_id);
+                $stmt->bind_param("sdssii", $sub_service_name, $price, $description, $images, $total_minutes, $sub_service_id);
                 
 if ($stmt->execute()) {
     error_log("Sub-service updated successfully: ID " . $sub_service_id);
@@ -366,6 +392,8 @@ $services = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             width: 60%;
             max-width: 700px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            max-height: 80vh;
+            overflow-y: auto;
         }
 
         .close {
@@ -511,6 +539,7 @@ $services = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                     <th>Sub-Service Name</th>
                                     <th>Parent Service</th>
                                     <th>Price</th>
+                                    <th>Duration</th>
                                     <th>Description</th>
                                     <th>Images</th>
                                     <th>Actions</th>
@@ -522,6 +551,10 @@ $services = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                         <td><?php echo htmlspecialchars($sub_service['sub_service_name']); ?></td>
                                         <td><?php echo htmlspecialchars($sub_service['service_name']); ?></td>
                                         <td>₹<?php echo number_format($sub_service['price'], 2); ?></td>
+                                        <td>
+                                            <i class="far fa-clock"></i> 
+                                            <?php echo isset($sub_service['estimated_duration']) ? $sub_service['estimated_duration'] : '60'; ?> min
+                                        </td>
                                         <td><?php echo htmlspecialchars($sub_service['description']); ?></td>
                                         <td>
                                             <?php if (!empty($sub_service['images'])): ?>
@@ -588,6 +621,21 @@ $services = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     <input type="file" name="images" id="images" class="form-control" accept="image/*">
                 </div>
                 
+                <div class="form-group">
+                    <label for="duration_days">Days</label>
+                    <input type="number" id="duration_days" name="duration_days" min="0" max="7" class="form-control" value="0">
+                </div>
+                
+                <div class="form-group">
+                    <label for="duration_hours">Hours</label>
+                    <input type="number" id="duration_hours" name="duration_hours" min="0" max="23" class="form-control" value="1">
+                </div>
+                
+                <div class="form-group">
+                    <label for="duration_minutes">Minutes</label>
+                    <input type="number" id="duration_minutes" name="duration_minutes" min="0" max="59" class="form-control" value="0">
+                </div>
+                
                 <button type="submit" class="submit-btn">Add Sub-Service</button>
             </form>
         </div>
@@ -624,6 +672,21 @@ $services = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     <small>Leave empty to keep current image</small>
                 </div>
                 
+                <div class="form-group">
+                    <label for="edit_duration_days">Days</label>
+                    <input type="number" id="edit_duration_days" name="duration_days" min="0" max="7" class="form-control" value="0">
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_duration_hours">Hours</label>
+                    <input type="number" id="edit_duration_hours" name="duration_hours" min="0" max="23" class="form-control" value="1">
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_duration_minutes">Minutes</label>
+                    <input type="number" id="edit_duration_minutes" name="duration_minutes" min="0" max="59" class="form-control" value="0">
+                </div>
+                
                 <button type="submit" class="submit-btn">Update Sub-Service</button>
             </form>
         </div>
@@ -644,6 +707,9 @@ $services = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     document.getElementById('edit_price').value = subService.price;
                     document.getElementById('edit_description').value = subService.description;
                     document.getElementById('current_image').value = subService.images || '';
+                    document.getElementById('edit_duration_days').value = Math.floor(subService.estimated_duration / 1440);
+                    document.getElementById('edit_duration_hours').value = Math.floor((subService.estimated_duration % 1440) / 60);
+                    document.getElementById('edit_duration_minutes').value = subService.estimated_duration % 60;
                     document.getElementById('editServiceModal').style.display = 'block';
                 })
                 .catch(error => console.error('Error:', error));

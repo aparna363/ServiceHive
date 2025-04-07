@@ -241,3 +241,19 @@ Stack trace:
 [26-Mar-2025 06:24:28 Europe/Berlin] 2025-03-26 06:24:28 - Decoded data - {"category_id":"","visit_date":"2025-03-27","visit_time":"13:54","visit_address":"hjk","visit_notes":"nm,","amount":"100","type":"visit"}
 [26-Mar-2025 06:24:28 Europe/Berlin] 2025-03-26 06:24:28 - Session data - {"user_id":null,"user_name":null,"user_email":null,"user_phone":null}
 [26-Mar-2025 06:24:28 Europe/Berlin] 2025-03-26 06:24:28 - Missing formData field
+[01-Apr-2025 17:41:41 Europe/Berlin] 2025-04-01 17:41:41 - Payment request received
+[01-Apr-2025 17:41:41 Europe/Berlin] 2025-04-01 17:41:41 - Raw input data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"1","visit_date":"2025-04-02","visit_time":"09:00","visit_address":"derftgyhj","visit_notes":"edfrgt"}}
+[01-Apr-2025 17:41:41 Europe/Berlin] 2025-04-01 17:41:41 - Decoded data - {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"1","visit_date":"2025-04-02","visit_time":"09:00","visit_address":"derftgyhj","visit_notes":"edfrgt"}}
+[01-Apr-2025 17:41:41 Europe/Berlin] 2025-04-01 17:41:41 - Session data - {"user_id":3,"user_name":"Archana","user_email":"rajiprasad7588@gmail.com","user_phone":null}
+[01-Apr-2025 17:41:41 Europe/Berlin] 2025-04-01 17:41:41 - Booking reference generated - VIS-7E92BC81
+[01-Apr-2025 17:41:41 Europe/Berlin] 2025-04-01 17:41:41 - Processing booking type - visit
+[01-Apr-2025 17:41:41 Europe/Berlin] 2025-04-01 17:41:41 - Visit booking data - {"category_id":1,"visit_date":"2025-04-02","visit_time":"09:00","visit_address":"derftgyhj"}
+[01-Apr-2025 17:41:41 Europe/Berlin] 2025-04-01 17:41:41 - Preparing to insert visit booking
+[01-Apr-2025 17:41:41 Europe/Berlin] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in C:\xampp\htdocs\serviceHive\create_order.php:165
+Stack trace:
+#0 C:\xampp\htdocs\serviceHive\create_order.php(165): mysqli_stmt->bind_param('iissssi', 3, 1, '2025-04-02', '09:00', 'derftgyhj', 'edfrgt', 'VIS-7E92BC81', 19900)
+#1 {main}
+  thrown in C:\xampp\htdocs\serviceHive\create_order.php on line 165
+[01-Apr-2025 17:44:58 Europe/Berlin] 2025-04-01 17:44:58 - Payment request received
+[01-Apr-2025 17:44:58 Europe/Berlin] 2025-04-01 17:44:58 - Raw input data - 
+[01-Apr-2025 17:44:58 Europe/Berlin] 2025-04-01 17:44:58 - No POST data received

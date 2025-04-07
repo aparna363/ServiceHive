@@ -7,6 +7,103 @@ $success_message = '';
 
 // Handle login form submission
 
+// Add Google sign-in handler
+if(isset($_POST['google_signin'])) {
+    $google_id = $_POST['google_id'];
+    $google_email = filter_var($_POST['google_email'], FILTER_SANITIZE_EMAIL);
+    $google_name = $_POST['google_name'];
+    
+    if(!filter_var($google_email, FILTER_VALIDATE_EMAIL)) {
+        $error_message = "Invalid email format from Google sign-in!";
+    } else {
+        // Check if user exists with this email
+        $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
+        $stmt->bind_param("s", $google_email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if($result->num_rows > 0) {
+            // User exists, log them in
+            $user = $result->fetch_assoc();
+            
+            // Check if account is active
+            if (!$user['is_active']) {
+                $_SESSION['show_deactivated_modal'] = true;
+                logLoginAttempt($conn, $user['id'], $google_email, 'failed', 'Account deactivated (Google)', $google_id);
+                $show_modal = true;
+            } else {
+                // Set session variables
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['email'] = $user['email'];
+                $_SESSION['role'] = $user['role'];
+                
+                // Set session security measures
+                $_SESSION['login_time'] = time();
+                $_SESSION['ip_address'] = $_SERVER['REMOTE_ADDR'];
+                session_regenerate_id(true);
+                
+                // Log successful login
+                logLoginAttempt($conn, $user['id'], $google_email, 'success', 'Google sign-in', $google_id);
+                
+                // Redirect based on role
+                $role = strtolower(trim($user['role']));
+                switch($role) {
+                    case 'admin':
+                        header("Location: admin.php");
+                        exit();
+                    case 'provider':
+                    case 'service_provider':
+                    case 'serviceprovider':
+                        $_SESSION['role'] = 'service_provider';
+                        header("Location: provider_dashboard.php");
+                        exit();
+                    default:
+                        header("Location: index.php");
+                        exit();
+                }
+            }
+        } else {
+            // Create new user with Google info
+            // Generate a random password that the user won't need (they'll use Google to sign in)
+            $random_password = bin2hex(random_bytes(8));
+            $hashed_password = password_hash($random_password, PASSWORD_DEFAULT);
+            
+            // Extract first name from full name (best effort)
+            $name_parts = explode(" ", $google_name);
+            $username = strtolower(preg_replace("/[^a-zA-Z0-9]/", "", $name_parts[0])) . rand(100, 999);
+            
+            $stmt = $conn->prepare("INSERT INTO users (username, email, password, role, email_verified, google_id) VALUES (?, ?, ?, 'user', 1, ?)");
+            $stmt->bind_param("ssss", $username, $google_email, $hashed_password, $google_id);
+            
+            if($stmt->execute()) {
+                $user_id = $conn->insert_id;
+                
+                // Set session variables
+                $_SESSION['user_id'] = $user_id;
+                $_SESSION['username'] = $username;
+                $_SESSION['email'] = $google_email;
+                $_SESSION['role'] = 'user';
+                
+                // Set session security measures
+                $_SESSION['login_time'] = time();
+                $_SESSION['ip_address'] = $_SERVER['REMOTE_ADDR'];
+                session_regenerate_id(true);
+                
+                // Log successful registration and login
+                logLoginAttempt($conn, $user_id, $google_email, 'success', 'Google registration and sign-in', $google_id);
+                
+                header("Location: index.php");
+                exit();
+            } else {
+                $error_message = "Error registering new user via Google: " . $stmt->error;
+                logLoginAttempt($conn, null, $google_email, 'failed', 'Google registration failed', $google_id);
+            }
+        }
+        $stmt->close();
+    }
+}
+
 // Modify the login verification section in your existing code
 if(isset($_POST['login'])) {
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
@@ -27,17 +124,20 @@ if(isset($_POST['login'])) {
             
             $password = $_POST['password'];
             
+            // Get google_id if it exists
+            $google_id = isset($user['google_id']) ? $user['google_id'] : null;
+            
             // First check if account is active
             if (!$user['is_active']) {
                 $_SESSION['show_deactivated_modal'] = true;
-                logLoginAttempt($conn, $user['id'], $email, 'failed', 'Account deactivated');
+                logLoginAttempt($conn, $user['id'], $email, 'failed', 'Account deactivated', $google_id);
                 $show_modal = true;
                 
             }
             // Then check email verification status
             else if(!$user['email_verified']) {
                 $error_message = "Please verify your email before logging in. Check your inbox for the verification link.";
-                logLoginAttempt($conn, $user['id'], $email, 'failed', 'Email not verified');
+                logLoginAttempt($conn, $user['id'], $email, 'failed', 'Email not verified', $google_id);
             }
             // Finally verify password
             else if(password_verify($password, $user['password'])) {
@@ -56,7 +156,7 @@ if(isset($_POST['login'])) {
                 session_regenerate_id(true);
 
                 // Log successful login
-                logLoginAttempt($conn, $user['id'], $email, 'success');
+                logLoginAttempt($conn, $user['id'], $email, 'success', '', $google_id);
 
                 // Modify your switch statement to be more flexible
                 $role = strtolower(trim($user['role']));
@@ -81,26 +181,26 @@ if(isset($_POST['login'])) {
                 }
             } else {
                 $error_message = "Invalid password!";
-                logLoginAttempt($conn, $user['id'], $email, 'failed', 'Invalid password');
+                logLoginAttempt($conn, $user['id'], $email, 'failed', 'Invalid password', $google_id);
             }
         } else {
             $error_message = "User not found!";
-            logLoginAttempt($conn, null, $email, 'failed', 'User not found');
+            logLoginAttempt($conn, null, $email, 'failed', 'User not found', null);
         }
         $stmt->close();
     }
 }
 
 // Function to log login attempts
-function logLoginAttempt($conn, $user_id, $email, $status, $notes = '') {
+function logLoginAttempt($conn, $user_id, $email, $status, $notes = '', $google_id = null) {
     try {
-        $stmt = $conn->prepare("INSERT INTO login_logs (user_id, email, ip_address, status, notes) VALUES (?, ?, ?, ?, ?)");
+        $stmt = $conn->prepare("INSERT INTO login_logs (user_id, email, google_id, ip_address, status, notes) VALUES (?, ?, ?, ?, ?, ?)");
         if (!$stmt) {
             throw new Exception("Prepare failed: " . $conn->error);
         }
 
         $ip = $_SERVER['REMOTE_ADDR'];
-        $stmt->bind_param("issss", $user_id, $email, $ip, $status, $notes);
+        $stmt->bind_param("isssss", $user_id, $email, $google_id, $ip, $status, $notes);
 
         if (!$stmt->execute()) {
             throw new Exception("Execute failed: " . $stmt->error);
@@ -118,6 +218,7 @@ function logLoginAttempt($conn, $user_id, $email, $status, $notes = '') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="main.js" defer type="module"></script>
     <title>Login - ServiceHive</title>
     <style>
         :root {
@@ -396,6 +497,57 @@ a:hover {
     from { opacity: 0; }
     to { opacity: 1; }
 }
+
+/* Google Sign-In Button */
+.or-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.or-divider::before,
+.or-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #eee;
+}
+
+.or-divider span {
+    padding: 0 10px;
+    color: #777;
+    font-size: 14px;
+}
+
+.google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #444;
+    cursor: pointer;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    text-decoration: none;
+    margin-bottom: 15px;
+}
+
+.google-btn:hover {
+    background-color: #f8f8f8;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.google-btn img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
     </style>
 </head>
 <body>
@@ -430,6 +582,16 @@ a:hover {
             </div>
             
             <input type="submit" name="login" value="Login" class="submit-btn">
+
+            <div class="or-divider">
+                <span>OR</span>
+            </div>
+
+            <a href="#" id="google-btn" class="google-btn">
+                <img src="images/google-icon.svg" alt="Google">
+                         Sign in with Google
+            </a>
+
             
             <div class="links">
                 <a href="forgot password.php"style="color:grey;">Forgot Password?</a>
@@ -451,6 +613,89 @@ a:hover {
     </div>
 </div>
     <script>
+        // Google Sign-In Redirect Result Handlers
+        document.addEventListener('googleSignInSuccess', function(event) {
+            console.log('Received google sign-in success from redirect');
+            const user = event.detail.user;
+            
+            // Create form to submit Google auth data to server
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            form.style.display = 'none';
+            
+            // Add Google ID
+            const idField = document.createElement('input');
+            idField.type = 'hidden';
+            idField.name = 'google_id';
+            idField.value = user.uid;
+            form.appendChild(idField);
+            
+            // Add Google email
+            const emailField = document.createElement('input');
+            emailField.type = 'hidden';
+            emailField.name = 'google_email';
+            emailField.value = user.email;
+            form.appendChild(emailField);
+            
+            // Add Google display name
+            const nameField = document.createElement('input');
+            nameField.type = 'hidden';
+            nameField.name = 'google_name';
+            nameField.value = user.displayName || '';
+            form.appendChild(nameField);
+            
+            // Add submission field
+            const submitField = document.createElement('input');
+            submitField.type = 'hidden';
+            submitField.name = 'google_signin';
+            submitField.value = '1';
+            form.appendChild(submitField);
+            
+            // Append form to body and submit
+            document.body.appendChild(form);
+            form.submit();
+        });
+
+        document.addEventListener('googleSignInError', function(event) {
+            const error = event.detail.error;
+            console.error('Google sign-in error from redirect:', error);
+            
+            let errorMessage = 'Authentication error. Please try again.';
+            if (error.code) {
+                switch(error.code) {
+                    case 'auth/network-request-failed':
+                        errorMessage = "Network error. Please check your internet connection and try again.";
+                        break;
+                    default:
+                        errorMessage = `Google sign-in failed: ${error.message}`;
+                }
+            }
+            
+            // Display error to user
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-container show';
+            errorDiv.innerHTML = `<div class="error">${errorMessage}</div>`;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(errorDiv, container.firstChild);
+        });
+
+        // Check if we're returning from a redirect
+        window.addEventListener('DOMContentLoaded', function() {
+            if (sessionStorage.getItem('googleSignInRedirect') === 'true') {
+                sessionStorage.removeItem('googleSignInRedirect');
+                
+                // Show loading message
+                const loadingInfo = document.createElement('div');
+                loadingInfo.className = 'verification-notice';
+                loadingInfo.innerHTML = 'Completing Google authentication...';
+                
+                const container = document.querySelector('.container');
+                container.insertBefore(loadingInfo, document.querySelector('.input-group'));
+            }
+        });
+
         const form = document.getElementById('loginForm');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
@@ -559,6 +804,134 @@ window.onclick = function(event) {
         closeModal();
     }
 }
+
+// Google Sign-In Handler
+document.getElementById('google-btn').addEventListener('click', async function(e) {
+    e.preventDefault();
+    
+    // Clear any previous errors
+    const previousErrors = document.querySelectorAll('.error-container.show');
+    previousErrors.forEach(error => error.remove());
+    
+    // Show loading indication
+    const btn = this;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<img src="images/google-icon.svg" alt="Google"> Connecting...';
+    btn.style.opacity = '0.7';
+    btn.disabled = true;
+    
+    try {
+        // Ensure we're responding to a user gesture (click)
+        if (!e.isTrusted) {
+            throw new Error("Authentication must be initiated by a user gesture");
+        }
+        
+        // Import the signInWithGoogle function from main.js
+        const { signInWithGoogle } = await import('./main.js');
+        
+        // Alert the user about popups potentially being blocked
+        const popupInfo = document.createElement('div');
+        popupInfo.className = 'verification-notice';
+        popupInfo.innerHTML = 'Please allow popups for this site when prompted.';
+        
+        const container = document.querySelector('.container');
+        container.insertBefore(popupInfo, document.querySelector('.input-group'));
+        
+        // Small delay to ensure the popup message is seen
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Call the function with a specified timeout
+        const result = await Promise.race([
+            signInWithGoogle(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Authentication timed out. Please try again.")), 30000))
+        ]);
+        
+        const user = result.user;
+        console.log('Google sign-in successful:', user);
+        
+        // Remove popup notice
+        popupInfo.remove();
+        
+        // Create form to submit Google auth data to server
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '';
+        form.style.display = 'none';
+        
+        // Add Google ID
+        const idField = document.createElement('input');
+        idField.type = 'hidden';
+        idField.name = 'google_id';
+        idField.value = user.uid;
+        form.appendChild(idField);
+        
+        // Add Google email
+        const emailField = document.createElement('input');
+        emailField.type = 'hidden';
+        emailField.name = 'google_email';
+        emailField.value = user.email;
+        form.appendChild(emailField);
+        
+        // Add Google display name
+        const nameField = document.createElement('input');
+        nameField.type = 'hidden';
+        nameField.name = 'google_name';
+        nameField.value = user.displayName || '';
+        form.appendChild(nameField);
+        
+        // Add submission field
+        const submitField = document.createElement('input');
+        submitField.type = 'hidden';
+        submitField.name = 'google_signin';
+        submitField.value = '1';
+        form.appendChild(submitField);
+        
+        // Append form to body and submit
+        document.body.appendChild(form);
+        form.submit();
+    } catch (error) {
+        // Handle specific error types
+        let errorMessage = error.message;
+        
+        // Reset button state
+        btn.innerHTML = originalText;
+        btn.style.opacity = '1';
+        btn.disabled = false;
+        
+        // Clear any popup notices
+        document.querySelectorAll('.verification-notice').forEach(notice => notice.remove());
+        
+        // Handle specific Firebase auth errors
+        if (error.code) {
+            console.error('Google sign-in error:', error.code, error.message);
+            
+            switch(error.code) {
+                case 'auth/popup-blocked':
+                    errorMessage = "Popup was blocked by your browser. Please allow popups for this site and try again.";
+                    break;
+                case 'auth/cancelled-popup-request':
+                    errorMessage = "Authentication cancelled. Please try again.";
+                    break;
+                case 'auth/popup-closed-by-user':
+                    errorMessage = "Authentication popup was closed. Please try again.";
+                    break;
+                case 'auth/network-request-failed':
+                    errorMessage = "Network error. Please check your internet connection and try again.";
+                    break;
+                default:
+                    errorMessage = `Google sign-in failed: ${error.message}`;
+            }
+        }
+        
+        // Display error to user
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-container show';
+        errorDiv.innerHTML = `<div class="error">${errorMessage}</div>`;
+        
+        const container = document.querySelector('.container');
+        container.insertBefore(errorDiv, container.firstChild);
+    }
+});
 
     </script>
     

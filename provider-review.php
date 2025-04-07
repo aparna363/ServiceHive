@@ -35,6 +35,12 @@ $query = "SELECT r.*, u.username, b.booking_date, b.booking_time, s.service_name
           JOIN tbl_services s ON b.service_id = s.service_id
           WHERE r.provider_id = ?";
 
+// Add this line to automatically update pending reviews to approved
+$update_query = "UPDATE reviews SET status = 'approved' WHERE provider_id = ? AND status = 'pending'";
+$update_stmt = $conn->prepare($update_query);
+$update_stmt->bind_param("i", $provider_id);
+$update_stmt->execute();
+
 // Add filters
 $params = [$provider_id];
 $types = "i";
@@ -763,12 +769,7 @@ $notification_count = $stmt->get_result()->fetch_assoc()['count'];
                                     <span class="info-value">#<?php echo $review['booking_id']; ?></span>
                                 </div>
                                 
-                                <div class="info-item">
-                                    <span class="info-label">Time</span>
-                                    <span class="info-value">
-                                        <?php echo date('h:i A', strtotime($review['booking_time'] ?? '00:00:00')); ?>
-                                    </span>
-                                </div>
+                                
                             </div>
                             
                             <div class="review-body">
@@ -781,12 +782,7 @@ $notification_count = $stmt->get_result()->fetch_assoc()['count'];
                             
                             <?php if ($review['status'] == 'pending'): ?>
                             <div class="review-actions">
-                                <button onclick="approveReview(<?php echo $review['id']; ?>)" class="btn-action approve">
-                                    <i class="fas fa-check"></i> Approve
-                                </button>
-                                <button onclick="rejectReview(<?php echo $review['id']; ?>)" class="btn-action reject">
-                                    <i class="fas fa-times"></i> Reject
-                                </button>
+                                <p><em>Reviews are automatically approved in the system.</em></p>
                             </div>
                             <?php endif; ?>
                         </div>
@@ -797,42 +793,6 @@ $notification_count = $stmt->get_result()->fetch_assoc()['count'];
     </div>
 
     <script>
-        function approveReview(reviewId) {
-            if (confirm('Are you sure you want to approve this review? It will be publicly visible.')) {
-                updateReviewStatus(reviewId, 'approved');
-            }
-        }
-        
-        function rejectReview(reviewId) {
-            if (confirm('Are you sure you want to reject this review?')) {
-                updateReviewStatus(reviewId, 'rejected');
-            }
-        }
-        
-        function updateReviewStatus(reviewId, status) {
-            const formData = new FormData();
-            formData.append('review_id', reviewId);
-            formData.append('status', status);
-            
-            fetch('update_review_status.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Review ' + status + ' successfully!');
-                    location.reload();
-                } else {
-                    alert('Error: ' + (data.message || 'Failed to update review status'));
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error updating review status. Please try again.');
-            });
-        }
-
         document.addEventListener('DOMContentLoaded', function() {
             const bellIcon = document.getElementById('bellIcon');
             

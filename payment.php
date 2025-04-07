@@ -914,39 +914,70 @@ if (isset($_SESSION['error'])) {
                     <div class="card-header">
                         <i class="fas fa-map-marker-alt"></i> Service Address
                         <button onclick="editAddress()" class="edit-address-btn">
-                            <i class="fas fa-edit"></i> Change
+                            <i class="fas fa-edit"></i> Enter Address
                         </button>
                     </div>
                     <div class="card-body">
                         <div class="address-content" id="address-display">
-                            <p><strong><?php echo htmlspecialchars($booking['username']); ?></strong></p>
-                            <p><?php echo htmlspecialchars($booking['address']); ?></p>
-                            <p><?php echo htmlspecialchars($booking['city']); ?>, 
-                               <?php echo htmlspecialchars($booking['state']); ?></p>
-                            <p>Mobile: <?php echo htmlspecialchars($booking['mobile']); ?></p>
-                            <p>Email: <?php echo htmlspecialchars($booking['email']); ?></p>
+                            <?php if (isset($_SESSION['service_address'])): ?>
+                                <p><strong><?php echo htmlspecialchars($booking['username']); ?></strong></p>
+                                <p><?php echo htmlspecialchars($_SESSION['service_address']['address']); ?></p>
+                                <p><?php echo htmlspecialchars($_SESSION['service_address']['district']); ?></p>
+                                <p><?php echo htmlspecialchars($_SESSION['service_address']['city']); ?>, 
+                                   <?php echo htmlspecialchars($_SESSION['service_address']['state']); ?> - 
+                                   <?php echo htmlspecialchars($_SESSION['service_address']['postal_code']); ?></p>
+                                <p>Mobile: <?php echo htmlspecialchars($booking['mobile']); ?></p>
+                                <p>Email: <?php echo htmlspecialchars($booking['email']); ?></p>
+                            <?php else: ?>
+                                <p class="text-center">Please enter your service address</p>
+                            <?php endif; ?>
                         </div>
                         
-                        <form id="address-form" style="display: none;" class="address-edit-form">
+                        <form id="address-form" style="display: <?php echo isset($_SESSION['service_address']) ? 'none' : 'block'; ?>" class="address-edit-form">
+                            <input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
                             <div class="form-group">
                                 <label>Complete Address*</label>
-                                <textarea name="address" required rows="3"><?php echo htmlspecialchars($booking['address']); ?></textarea>
+                                <textarea name="address" required rows="3"><?php echo isset($_SESSION['service_address']) ? htmlspecialchars($_SESSION['service_address']['address']) : ''; ?></textarea>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>City*</label>
-                                    <input type="text" name="city" required 
-                                           value="<?php echo htmlspecialchars($booking['city']); ?>">
+                                    <label>Postal Code*</label>
+                                    <input type="text" name="postal_code" id="postal_code" required pattern="[0-9]{6}" 
+                                           title="Please enter a valid 6-digit postal code" maxlength="6"
+                                           value="<?php echo isset($_SESSION['service_address']) ? htmlspecialchars($_SESSION['service_address']['postal_code']) : ''; ?>">
+                                    <small id="postal-code-loading" style="display:none;"><i class="fas fa-spinner fa-spin"></i> Fetching location data...</small>
+                                    <small id="postal-code-error" class="text-danger" style="display:none;">Unable to find location for this postal code</small>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>District*</label>
+                                    <input type="text" name="district" id="district" required 
+                                           value="<?php echo isset($_SESSION['service_address']) ? htmlspecialchars($_SESSION['service_address']['district']) : ''; ?>">
                                 </div>
                                 <div class="form-group">
-                                    <label>State*</label>
-                                    <input type="text" name="state" required 
-                                           value="<?php echo htmlspecialchars($booking['state']); ?>">
+                                    <label>City*</label>
+                                    <input type="text" name="city" id="city" required 
+                                           value="<?php echo isset($_SESSION['service_address']) ? htmlspecialchars($_SESSION['service_address']['city']) : ''; ?>">
                                 </div>
+                            </div>
+                            <div class="form-group">
+                                <label>State*</label>
+                                <input type="text" name="state" id="state" required 
+                                       value="<?php echo isset($_SESSION['service_address']) ? htmlspecialchars($_SESSION['service_address']['state']) : ''; ?>">
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" name="is_default" <?php echo (isset($_SESSION['service_address']) && $_SESSION['service_address']['is_default']) ? 'checked' : ''; ?>>
+                                    <span class="checkmark"></span>
+                                    Save this address for future bookings
+                                </label>
                             </div>
                             <div class="form-buttons">
                                 <button type="submit" class="save-address-btn">Save Address</button>
+                                <?php if (isset($_SESSION['service_address'])): ?>
                                 <button type="button" onclick="cancelEdit()" class="cancel-btn">Cancel</button>
+                                <?php endif; ?>
                             </div>
                         </form>
                     </div>
@@ -993,116 +1024,139 @@ if (isset($_SESSION['error'])) {
     </div>
 
     <script>
-        const paymentMethods = [
-            {
-                id: 'upi',
-                name: 'UPI',
-                icon: `<div class="payment-icons">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/UPI-Logo-vector.svg/1200px-UPI-Logo-vector.svg.png" alt="UPI" style="height: 20px;">
-                    <img src="https://download.logo.wine/logo/PhonePe/PhonePe-Logo.wine.png" alt="PhonePe" style="height: 20px;">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Paytm_logo.png/640px-Paytm_logo.png" alt="Paytm" style="height: 20px;">
-                    <img src="https://developers.google.com/pay/api/images/brand-guidelines/google-pay-mark.png" alt="Google Pay" style="height: 20px; object-fit: contain;">
+       const paymentMethods = [
+    {
+        id: 'card',
+        name: 'Cards',
+        icon: '<div class="payment-icons"><img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" height="24"><img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" height="24"><img src="https://upload.wikimedia.org/wikipedia/commons/d/d1/RuPay.svg" alt="RuPay" height="24"></div>',
+        subtext: 'Credit & Debit Cards'
+    },
+    {
+    id: 'upi',
+    name: 'UPI',
+    icon: '<div class="payment-icons"><img src="https://developers.google.com/pay/api/images/brand-guidelines/google-pay-mark.png" alt="Google Pay"><img src="https://download.logo.wine/logo/PhonePe/PhonePe-Logo.wine.png" alt="PhonePe"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/UPI-Logo-vector.svg/1200px-UPI-Logo-vector.svg.png" alt="BHIM UPI"></div>',
+    subtext: 'Google Pay, PhonePe, BHIM UPI'
+},
 
-
-                </div>`,
-                subtext: 'Google Pay, PhonePe, BHIM UPI'
-            },
-            {
-                id: 'card',
-                name: 'Cards',
-                icon: '<div class="payment-icons"><i class="fab fa-cc-visa" style="color: #1A1F71"></i><i class="fab fa-cc-mastercard" style="color: #EB001B"></i><i class="fab fa-cc-amex" style="color: #006FCF"></i></div>',
-                subtext: 'Credit & Debit Cards'
-            },
-            {
+{
                 id: 'netbanking',
                 name: 'Netbanking',
                 icon: '<div class="payment-icons"><i class="fas fa-university" style="color: #0066B8"></i></div>',
                 subtext: 'All Indian banks'
             },
-            {
+    {
                 id: 'wallet',
                 name: 'Wallet',
                 icon: '<div class="payment-icons"><i class="fas fa-wallet" style="color: #00BAF2"></i></div>',
                 subtext: 'Paytm, PhonePe, Amazon Pay'
             }
-        ];
+];
 
-        const upiApps = [
-            {
-                id: 'gpay',
-                name: 'Google Pay',
-                icon: '<img src="https://developers.google.com/pay/api/images/brand-guidelines/google-pay-mark.png" alt="Google Pay" style="height: 20px;">',
-                pattern: '@okicici|@okhdfcbank|@okaxis|@oksbi'
-            },
-            {
-                id: 'phonepe',
-                name: 'PhonePe',
-                icon: '<img src="https://download.logo.wine/logo/PhonePe/PhonePe-Logo.wine.png" alt="PhonePe" style="height: 20px;">',
-                pattern: '@ybl|@yesbank'
-            },
-            {
-                id: 'paytm',
-                name: 'Paytm',
-                icon: '<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Paytm_logo.png/640px-Paytm_logo.png" alt="Paytm" style="height: 20px;">',
-                pattern: '@paytm'
-            },
-            {
-                id: 'bhim',
-                name: 'BHIM UPI',
-                icon: '<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/UPI-Logo-vector.svg/1200px-UPI-Logo-vector.svg.png" alt="BHIM UPI" style="height: 20px;">',
-                pattern: '@upi'
-            }
-        ];
-
-        document.getElementById('payment-methods').innerHTML = paymentMethods
-            .map(method => `
-                <div class="payment-method" onclick="selectPaymentMethod('${method.id}')">
-                    <div class="payment-method-left">
-                        ${method.icon}
-                        <div class="payment-method-info">
-                            <span class="payment-method-name">${method.name}</span>
-                            <span class="payment-method-subtext">${method.subtext}</span>
+        // Initialize payment methods container
+        document.getElementById('payment-methods').innerHTML = `
+            <div class="payment-methods-container">
+                ${paymentMethods.map(method => `
+                    <div class="payment-method" onclick="selectPaymentMethod('${method.id}')">
+                        <div class="payment-method-left">
+                            ${method.icon}
+                            <div class="payment-method-info">
+                                <span class="payment-method-name">${method.name}</span>
+                                <span class="payment-method-subtext">${method.subtext}</span>
+                            </div>
                         </div>
+                        <i class="fas fa-chevron-right"></i>
                     </div>
-                    <i class="fas fa-chevron-right"></i>
-                </div>
-            `).join('');
+                `).join('')}
+            </div>
+        `;
 
         let selectedMethod = null;
-        let razorpayInstance = null;
+        let addressSaved = <?php echo isset($_SESSION['service_address']) ? 'true' : 'false'; ?>;
+        
+        // Initialize payment details object
+        window.paymentDetails = {
+            method: null
+        };
+
+        // Update pay button state based on address and payment method
+        function updatePayButtonState() {
+            const payButton = document.getElementById('pay-button');
+            payButton.disabled = !addressSaved || !window.paymentDetails.method;
+        }
 
         function selectPaymentMethod(method) {
-            // Hide all payment detail sections first
-            document.querySelectorAll('.payment-details-section').forEach(section => {
-                section.style.display = 'none';
-            });
-
-            // Show the selected method's details section
-            if (method === 'upi') {
-                document.querySelector('.upi-details-container').style.display = 'block';
-                // Ensure UPI details are set
-                window.paymentDetails = {
-                    method: method,
-                    vpa: 'success@razorpay' // Default test VPA
-                };
-            }
-
-            // Update active state of payment methods
+            // Reset all payment methods
             document.querySelectorAll('.payment-method').forEach(el => {
                 el.classList.remove('active');
             });
+            
+            // Set the selected method as active
             event.currentTarget.classList.add('active');
-
-            // Enable pay button
-            document.getElementById('pay-button').disabled = false;
-
-            // Log for debugging
-            console.log('Selected payment method:', window.paymentDetails);
+            
+            // Update payment details
+            window.paymentDetails.method = method;
+            
+            // Update pay button state
+            updatePayButtonState();
         }
+
+        function editAddress() {
+            document.getElementById('address-display').style.display = 'none';
+            document.getElementById('address-form').style.display = 'block';
+        }
+
+        function cancelEdit() {
+            document.getElementById('address-display').style.display = 'block';
+            document.getElementById('address-form').style.display = 'none';
+        }
+
+        document.getElementById('address-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('save_service_address.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addressSaved = true;
+                    updatePayButtonState();
+                    
+                    // Update the address display
+                    const addressDisplay = document.getElementById('address-display');
+                    addressDisplay.innerHTML = `
+                        <p><strong>${data.username}</strong></p>
+                        <p>${data.address.address}</p>
+                        <p>${data.address.district}</p>
+                        <p>${data.address.city}, ${data.address.state} - ${data.address.postal_code}</p>
+                        <p>Mobile: ${data.mobile}</p>
+                        <p>Email: ${data.email}</p>
+                    `;
+                    
+                    // Show the address display and hide the form
+                    addressDisplay.style.display = 'block';
+                    document.getElementById('address-form').style.display = 'none';
+                } else {
+                    alert('Failed to save address: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while saving the address. Please try again.');
+            });
+        });
 
         document.getElementById('pay-button').addEventListener('click', function() {
             if (!window.paymentDetails || !window.paymentDetails.method) {
                 alert('Please select a payment method');
+                return;
+            }
+            
+            if (!addressSaved) {
+                alert('Please enter a service address');
                 return;
             }
 
@@ -1143,17 +1197,27 @@ if (isset($_SESSION['error'])) {
         });
 
         function handlePaymentResponse(response, payButton) {
+            // Check if we have a valid payment ID from Razorpay
+            if (!response.razorpay_payment_id) {
+                alert('Payment failed: No payment ID received from Razorpay');
+                payButton.disabled = false;
+                payButton.innerHTML = '<i class="fas fa-lock"></i> Pay Securely Now';
+                return;
+            }
+
             const paymentData = {
-                booking_id: <?php echo $booking_id; ?>,
+                booking_id: <?php echo isset($booking_id) ? $booking_id : 'null'; ?>,
                 payment_id: response.razorpay_payment_id,
                 amount: <?php echo $total; ?>,
                 payment_method: window.paymentDetails.method,
                 user_id: <?php echo $user_id; ?>,
-                cart_items: <?php echo json_encode($items); ?>
+                cart_items: <?php echo json_encode($items); ?>,
+                address_id: <?php echo isset($_SESSION['service_address']) && isset($_SESSION['service_address']['id']) ? $_SESSION['service_address']['id'] : 'null'; ?>
             };
 
             // Show loading state
             document.body.style.cursor = 'wait';
+            console.log('Sending payment data:', paymentData);
 
             fetch('process_payment.php', {
                 method: 'POST',
@@ -1163,15 +1227,19 @@ if (isset($_SESSION['error'])) {
                 body: JSON.stringify(paymentData)
             })
             .then(response => {
+                console.log('Response status:', response.status);
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    return response.text().then(text => {
+                        throw new Error('Server error: ' + response.status + ' ' + text);
+                    });
                 }
                 return response.json();
             })
             .then(data => {
+                console.log('Payment processing response:', data);
                 if (data.success) {
                     window.location.href = 'payment_success.php?' + new URLSearchParams({
-                        booking_id: paymentData.booking_id,
+                        booking_id: data.booking_id || paymentData.booking_id,
                         payment_id: paymentData.payment_id,
                         amount: paymentData.amount,
                         status: 'success'
@@ -1181,8 +1249,8 @@ if (isset($_SESSION['error'])) {
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while processing your payment. Please try again.');
+                console.error('Error details:', error);
+                alert('Payment processing failed: ' + error.message);
                 
                 // Re-enable the pay button
                 payButton.disabled = false;
@@ -1193,156 +1261,55 @@ if (isset($_SESSION['error'])) {
             });
         }
 
-        function editAddress() {
-            document.getElementById('address-display').style.display = 'none';
-            document.getElementById('address-form').style.display = 'block';
-        }
-
-        function cancelEdit() {
-            document.getElementById('address-display').style.display = 'block';
-            document.getElementById('address-form').style.display = 'none';
-        }
-
-        document.getElementById('address-form').addEventListener('submit', function(e) {
-            e.preventDefault();
+        // Postal code lookup
+        document.getElementById('postal_code').addEventListener('input', function(e) {
+            const postalCode = e.target.value.trim();
             
-            const formData = new FormData(this);
-            
-            fetch('update_booking_address.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Failed to update address. Please try again.');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred. Please try again.');
-            });
+            // Only proceed if we have a 6-digit postal code
+            if (postalCode.length === 6 && /^\d{6}$/.test(postalCode)) {
+                const loadingIndicator = document.getElementById('postal-code-loading');
+                const errorMessage = document.getElementById('postal-code-error');
+                
+                // Show loading indicator
+                loadingIndicator.style.display = 'inline';
+                errorMessage.style.display = 'none';
+                
+                // Fetch location data from India Post API
+                fetch(`https://api.postalpincode.in/pincode/${postalCode}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        loadingIndicator.style.display = 'none';
+                        
+                        if (data[0].Status === 'Success' && data[0].PostOffice && data[0].PostOffice.length > 0) {
+                            const postOffice = data[0].PostOffice[0];
+                            
+                            // Fill in the form fields
+                            document.getElementById('district').value = postOffice.District;
+                            document.getElementById('city').value = postOffice.Block || postOffice.Name;
+                            document.getElementById('state').value = postOffice.State;
+                            
+                            // Hide error message if it was previously shown
+                            errorMessage.style.display = 'none';
+                        } else {
+                            // Show error message
+                            errorMessage.style.display = 'inline';
+                            
+                            // Clear the fields
+                            document.getElementById('district').value = '';
+                            document.getElementById('city').value = '';
+                            document.getElementById('state').value = '';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching postal code data:', error);
+                        loadingIndicator.style.display = 'none';
+                        errorMessage.style.display = 'inline';
+                    });
+            }
         });
 
-        function showUPIDetails(upiAppId) {
-            const upiDetailsContainer = document.querySelector('.upi-details-container');
-            if (!upiDetailsContainer) return;
-
-            const selectedApp = upiApps.find(app => app.id === upiAppId);
-            if (!selectedApp) return;
-
-            upiDetailsContainer.innerHTML = `
-                <div class="upi-input-field">
-                    <input type="text" 
-                           id="upi-id-input" 
-                           placeholder="Enter ${selectedApp.name} UPI ID (e.g. username${selectedApp.pattern.split('|')[0]})"
-                           pattern="${selectedApp.pattern.replace(/\|/g, '|')}"
-                           required>
-                    <button type="button" onclick="verifyAndProceed('${upiAppId}')">Verify & Pay</button>
-                </div>
-                <p class="upi-details">Please enter your registered UPI ID for ${selectedApp.name}</p>
-            `;
-            upiDetailsContainer.style.display = 'block';
-        }
-
-        function verifyAndProceed(upiAppId) {
-            const upiInput = document.getElementById('upi-id-input');
-            const upiId = upiInput.value.trim();
-            const selectedApp = upiApps.find(app => app.id === upiAppId);
-            
-            if (!upiId) {
-                alert('Please enter your UPI ID');
-                return;
-            }
-
-            const pattern = new RegExp(selectedApp.pattern.replace(/\|/g, '|'));
-            if (!pattern.test(upiId)) {
-                alert(`Please enter a valid ${selectedApp.name} UPI ID`);
-                return;
-            }
-
-            // Set UPI details
-            window.paymentDetails = {
-                method: 'upi',
-                upiType: upiAppId,
-                vpa: upiId
-            };
-
-            // Enable pay button after UPI verification
-            document.getElementById('pay-button').disabled = false;
-        }
-
-        document.getElementById('payment-methods').innerHTML = `
-            <div class="payment-method" onclick="selectPaymentMethod('card')">
-                <div class="payment-method-left">
-                    <div class="payment-icons">
-                        <i class="fab fa-cc-visa" style="color: #1A1F71"></i>
-                        <i class="fab fa-cc-mastercard" style="color: #EB001B"></i>
-                        <i class="fab fa-cc-amex" style="color: #006FCF"></i>
-                    </div>
-                    <div class="payment-method-info">
-                        <span class="payment-method-name">Cards</span>
-                        <span class="payment-method-subtext">Credit & Debit Cards</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right"></i>
-            </div>
-            
-            <div class="payment-method" onclick="selectPaymentMethod('upi')">
-                <div class="payment-method-left">
-                    <div class="payment-icons">
-                        ${upiApps.map(app => app.icon).join('')}
-                    </div>
-                    <div class="payment-method-info">
-                        <span class="payment-method-name">UPI</span>
-                        <span class="payment-method-subtext">Pay using UPI Apps</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right"></i>
-            </div>
-            
-            <div class="upi-details-container" style="display: none;">
-                <div class="upi-options">
-                    ${upiApps.map(app => `
-                        <div class="upi-option" onclick="showUPIDetails('${app.id}')">
-                            <div class="payment-method-left">
-                                ${app.icon}
-                                <span class="payment-method-name">${app.name}</span>
-                            </div>
-                            <i class="fas fa-chevron-right"></i>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-
-            <div class="payment-method" onclick="selectPaymentMethod('netbanking')">
-                <div class="payment-method-left">
-                    <div class="payment-icons">
-                        <i class="fas fa-university" style="color: #0066B8"></i>
-                    </div>
-                    <div class="payment-method-info">
-                        <span class="payment-method-name">Netbanking</span>
-                        <span class="payment-method-subtext">All Indian banks</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right"></i>
-            </div>
-            
-            <div class="payment-method" onclick="selectPaymentMethod('wallet')">
-                <div class="payment-method-left">
-                    <div class="payment-icons">
-                        <i class="fas fa-wallet" style="color: #00BAF2"></i>
-                    </div>
-                    <div class="payment-method-info">
-                        <span class="payment-method-name">Wallet</span>
-                        <span class="payment-method-subtext">Paytm, PhonePe, Amazon Pay</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right"></i>
-            </div>
-        `;
+        // Initialize pay button state
+        updatePayButtonState();
     </script>
 </body>
 </html>

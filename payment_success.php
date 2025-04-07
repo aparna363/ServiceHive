@@ -51,7 +51,7 @@ if (!$payment_details) {
             <div class="success-icon">
                 <i class="fas fa-check-circle"></i>
             </div>
-            <h1>Payment Successful!</h1>
+            <h1>Booking Successful!</h1>
             <p>Your booking has been confirmed.</p>
             
             <div class="payment-details">

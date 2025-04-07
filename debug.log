@@ -1,2 +1,6 @@
 Request received: {"category_id":"","visit_date":"2025-03-27","visit_time":"13:54","visit_address":"hjk","visit_notes":"nm,","amount":"100","type":"visit"}
 About to send response: {"success":false,"message":"Form data is required"}
+Request received: {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"1","visit_date":"2025-04-02","visit_time":"09:00","visit_address":"derftgyhj","visit_notes":"edfrgt"}}
+Request received: 
+About to send response: {"success":false,"message":"No data received"}
+Request received: {"amount":19900,"type":"visit","formData":{"action":"book_visit","category_id":"1","visit_date":"2025-04-02","visit_time":"09:00","visit_address":"sdfgbvnm ","visit_notes":"dfvb"}}

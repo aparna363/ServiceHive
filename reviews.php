@@ -25,8 +25,16 @@ function getUserName($conn, $user_id) {
     return "Unknown User";
 }
 
-// Simplified function that doesn't require database lookup
+// Replace the simplified function with one that actually looks up the service name
 function getServiceName($conn, $service_id) {
+    $query = "SELECT service_name FROM tbl_services WHERE service_id = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $service_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($row = $result->fetch_assoc()) {
+        return $row['service_name'];
+    }
     return "Service #" . $service_id;
 }
 
@@ -307,8 +315,8 @@ $pending_reviews_count = $pending_reviews_result['pending_reviews'] ?? 0;
                             </div>
                         <?php else: ?>
                             <div class="info-item">
-                                <span class="info-label">Service Provider</span>
-                                <span class="info-value"><?php echo getProviderName($conn, $review['provider_id']); ?></span>
+                                <span class="info-label">Provider</span>
+                                <span class="info-value"><?php echo htmlspecialchars(getProviderName($conn, $review['provider_id'])); ?></span>
                             </div>
                         <?php endif; ?>
                         

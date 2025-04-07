@@ -126,6 +126,28 @@ try {
         throw new Exception("Failed to update provider status: " . $stmt->error);
     }
     
+    // Also update the users table status to match
+    $stmt_user = $conn->prepare("
+        UPDATE users 
+        SET status = ? 
+        WHERE id = ? AND role = 'service_provider'
+    ");
+    $stmt_user->bind_param("si", $status, $user_id);
+    
+    if (!$stmt_user->execute()) {
+        throw new Exception("Failed to update user status: " . $stmt_user->error);
+    }
+    
+    // Update verification_status table
+    $docs_status = ($status === 'approved') ? 'completed' : 'rejected';
+    $stmt_vs = $conn->prepare("
+        UPDATE verification_status 
+        SET documents_uploaded = ? 
+        WHERE provider_id = ?
+    ");
+    $stmt_vs->bind_param("si", $docs_status, $user_id);
+    $stmt_vs->execute();
+    
     // Log the affected rows
     error_log("Affected rows: " . $stmt->affected_rows);
     

@@ -276,120 +276,143 @@ document.addEventListener('DOMContentLoaded', function() {
 
 //---------------------------search functionality--------------------------------------------------------------------------------
 
-
-
-// Add this to your script.js
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('searchInput');
-    const searchResults = document.getElementById('searchResults');
-    let searchTimeout;
-
-    function createResultCard(service) {
-        return `
-            <div class="search-result-card">
-                <div class="service-info">
-                    <h4>${service.name}</h4>
-                    <div class="service-meta">
-                        <span class="category">${service.category}</span>
-                        <span class="rating">★ ${service.rating}</span>
-                        <span class="price">${service.price}</span>
-                    </div>
+// Function to create a service card
+function createResultCard(service) {
+    return `
+        <div class="search-result-card">
+            <div class="service-info">
+                <h4>${service.service_name}</h4>
+                <div class="service-meta">
+                    <span>${service.category_name}</span>
+                    ${service.avg_rating > 0 ? 
+                        `<span class="rating">★ ${parseFloat(service.avg_rating).toFixed(1)}</span>` 
+                        : ''}
                 </div>
-                <button class="book-now">Book Now</button>
             </div>
-        `;
-    }
+            <a href="service-details.php?service_id=${service.service_id}" class="book-now">Book</a>
+        </div>
+    `;
+}
 
-    function showPopularSearches(searches) {
-        return `
+// Function to show popular searches when no results are found
+function showPopularSearches(query) {
+    return `
+        <div class="no-results">
+            <p>No results found for "${query}"</p>
             <div class="popular-searches">
                 <h3>Popular Searches</h3>
                 <div class="popular-tags">
-                    ${searches.map(search => `
-                        <span class="popular-tag">${search}</span>
-                    `).join('')}
+                    <a href="#" onclick="performSearch('Cleaning'); return false;">Cleaning</a>
+                    <a href="#" onclick="performSearch('Plumbing'); return false;">Plumbing</a>
+                    <a href="#" onclick="performSearch('Electrical'); return false;">Electrical</a>
+                    <a href="#" onclick="performSearch('Painting'); return false;">Painting</a>
                 </div>
             </div>
-        `;
-    }
+        </div>
+    `;
+}
 
-    function performSearch() {
-        const term = searchInput.value;
-        
-        if (term.length < 2) {
-            fetch('search_handler.php')
-                .then(response => response.json())
-                .then(data => {
-                    searchResults.innerHTML = showPopularSearches(data.popular_searches);
-                    searchResults.style.display = 'block';
+// Function to perform search
+function performSearch(query) {
+    const searchResults = document.getElementById('searchResults');
+    
+    // Show loading indicator
+    searchResults.innerHTML = '<div class="loading">Searching...</div>';
+    searchResults.style.display = 'block';
+
+    // Make AJAX request to search.php (not search_handler.php)
+    fetch(`search.php?query=${encodeURIComponent(query)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.text().then(text => {
+                try {
+                    // Log the raw response for debugging
+                    console.log('Raw server response:', text);
+                    return JSON.parse(text);
+                } catch (e) {
+                    console.error('Failed to parse server response:', text);
+                    throw new Error('Invalid JSON response from server');
+                }
+            });
+        })
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Search failed');
+            }
+
+            let resultsHtml = '';
+
+            // Handle services
+            if (data.results && data.results.services && data.results.services.length > 0) {
+                resultsHtml += '<div class="service-results">';
+                resultsHtml += '<h3>Services</h3>';
+                data.results.services.forEach(service => {
+                    resultsHtml += createResultCard(service);
                 });
+                resultsHtml += '</div>';
+            } else {
+                resultsHtml = showPopularSearches(query);
+            }
+
+            searchResults.innerHTML = resultsHtml;
+        })
+        .catch(error => {
+            console.error('Search error:', error);
+            searchResults.innerHTML = `
+                <div class="error">
+                    <p>An error occurred while searching. Please try again.</p>
+                    <p class="error-details">${error.message}</p>
+                </div>
+            `;
+        });
+}
+
+// Add event listeners when the document is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const searchButton = document.getElementById('searchButton');
+    const searchResults = document.getElementById('searchResults');
+
+    // Handle search button click
+    searchButton.addEventListener('click', function() {
+        const query = searchInput.value.trim();
+        if (query.length < 2) {
+            searchResults.style.display = 'none';
             return;
         }
+        performSearch(query);
+    });
 
-        fetch(`search_handler.php?term=${encodeURIComponent(term)}`)
-            .then(response => response.json())
-            .then(data => {
-                let html = '';
-                if (data.results.length > 0) {
-                    html = data.results.map(service => createResultCard(service)).join('');
-                } else {
-                    html = `<div class="no-results">No services found for "${term}"</div>`;
-                }
-                searchResults.innerHTML = html;
-                searchResults.style.display = 'block';
-            });
-    }
-
-    searchInput.addEventListener('input', () => {
+    // Search on input after delay (debounce)
+    let searchTimeout;
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim();
         clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(performSearch, 300);
+        if (query.length < 2) {
+            searchResults.style.display = 'none';
+            return;
+        }
+        searchTimeout = setTimeout(() => performSearch(query), 500);
+    });
+
+    // Search on Enter key
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const query = this.value.trim();
+            if (query.length < 2) {
+                searchResults.style.display = 'none';
+                return;
+            }
+            performSearch(query);
+        }
     });
 
     // Close search results when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!searchResults.contains(e.target) && !searchInput.contains(e.target)) {
-            searchResults.style.display = 'none';
-        }
-    });
-});
-
-
-
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('searchInput');
-    const searchResults = document.getElementById('searchResults');
-    
-    searchInput.addEventListener('input', function() {
-        const searchTerm = this.value.trim();
-        
-        if (searchTerm.length > 0) {
-            // Using the PHP class through AJAX
-            fetch(`search.php?term=${encodeURIComponent(searchTerm)}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.noResults) {
-                        searchResults.innerHTML = '<div class="no-results">No services found</div>';
-                    } else {
-                        const resultsHtml = data.results.map(result => `
-                            <div class="search-result-card">
-                                <div class="service-info">
-                                    <h4>${result}</h4>
-                                </div>
-                                <button class="book-now">Book Now</button>
-                            </div>
-                        `).join('');
-                        searchResults.innerHTML = resultsHtml;
-                    }
-                    searchResults.style.display = 'block';
-                });
-        } else {
-            searchResults.style.display = 'none';
-        }
-    });
-    
-    // Hide results when clicking outside
     document.addEventListener('click', function(e) {
-        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+        if (!e.target.closest('.search-container')) {
             searchResults.style.display = 'none';
         }
     });

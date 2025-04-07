@@ -515,6 +515,25 @@ $categories = $conn->query($categories_query);
             </div>
         </nav>
 
+        <!-- Add this section to display feedback messages -->
+        <?php if (isset($_SESSION['message'])): ?>
+            <div class="alert alert-success" style="padding: 15px; margin: 20px; border: 1px solid #c3e6cb; background-color: #d4edda; color: #155724; border-radius: 5px;">
+                <?php echo $_SESSION['message']; unset($_SESSION['message']); ?>
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert alert-danger" style="padding: 15px; margin: 20px; border: 1px solid #f5c6cb; background-color: #f8d7da; color: #721c24; border-radius: 5px;">
+                <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+                <?php
+                    // Optional: Clear form data after displaying error
+                    if (isset($_SESSION['form_data'])) {
+                        unset($_SESSION['form_data']);
+                    }
+                ?>
+            </div>
+        <?php endif; ?>
+        <!-- End feedback message section -->
+
         <div class="contact-hero">
             <h1>Get in Touch</h1>
             <p>We're here to help and answer any questions you might have</p>
@@ -552,31 +571,37 @@ $categories = $conn->query($categories_query);
                     <form action="process_contact.php" method="POST">
                         <div class="form-group">
                             <label for="name">Full Name</label>
-                            <input type="text" id="name" name="name" required>
+                            <input type="text" id="name" name="name" required value="<?php echo isset($_SESSION['form_data']['name']) ? htmlspecialchars($_SESSION['form_data']['name']) : ''; ?>">
                         </div>
                         
                         <div class="form-group">
                             <label for="email">Email Address</label>
-                            <input type="email" id="email" name="email" required>
+                            <input type="email" id="email" name="email" required value="<?php echo isset($_SESSION['form_data']['email']) ? htmlspecialchars($_SESSION['form_data']['email']) : ''; ?>">
                         </div>
                         
                         <div class="form-group">
                             <label for="phone">Phone Number</label>
-                            <input type="tel" id="phone" name="phone">
+                            <input type="tel" id="phone" name="phone" value="<?php echo isset($_SESSION['form_data']['phone']) ? htmlspecialchars($_SESSION['form_data']['phone']) : ''; ?>">
                         </div>
                         
                         <div class="form-group">
                             <label for="subject">Subject</label>
-                            <input type="text" id="subject" name="subject" required>
+                            <input type="text" id="subject" name="subject" required value="<?php echo isset($_SESSION['form_data']['subject']) ? htmlspecialchars($_SESSION['form_data']['subject']) : ''; ?>">
                         </div>
                         
                         <div class="form-group">
                             <label for="message">Message</label>
-                            <textarea id="message" name="message" required></textarea>
+                            <textarea id="message" name="message" required><?php echo isset($_SESSION['form_data']['message']) ? htmlspecialchars($_SESSION['form_data']['message']) : ''; ?></textarea>
                         </div>
                         
                         <button type="submit" class="submit-btn">Send Message</button>
                     </form>
+                    <?php
+                        // Clear form data session variable after using it
+                        if (isset($_SESSION['form_data'])) {
+                            unset($_SESSION['form_data']);
+                        }
+                    ?>
                 </div>
                 
                 <div class="map-container">
