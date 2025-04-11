@@ -938,15 +938,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Try first combination (most common column names)
                 try {
                     $insert_booking = "INSERT INTO bookings (
-                        user_id, provider_id, service_id, booking_date, time_slot, status, 
+                        user_id, provider_id, service_id, booking_date, status, 
                         total_amount, payment_status, notes, booking_reference
-                    ) VALUES (?, ?, ?, ?, ?, 'pending', ?, 'pending', ?, ?)";
+                    ) VALUES (?, ?, ?, ?, 'pending', ?, 'pending', ?, ?)";
                     
                     $stmt = $conn->prepare($insert_booking);
                     
                     if ($stmt) {
-                        $stmt->bind_param("iiissdss", 
-                            $user_id, $provider_id, $service_id, $booking_date, $time_slot,
+                        $stmt->bind_param("iiisdss", 
+                            $user_id, $provider_id, $service_id, $booking_date, 
                             $total_price, $notes, $booking_reference
                         );
                         
@@ -963,15 +963,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$insert_success) {
                     try {
                         $insert_booking = "INSERT INTO bookings (
-                            user_id, provider_id, service_id, date, time_slot, status, 
+                            user_id, provider_id, service_id, date, status, 
                             price, payment_status, notes, reference_no
-                        ) VALUES (?, ?, ?, ?, ?, 'pending', ?, 'pending', ?, ?)";
+                        ) VALUES (?, ?, ?, ?, 'pending', ?, 'pending', ?, ?)";
                         
                         $stmt = $conn->prepare($insert_booking);
                         
                         if ($stmt) {
-                            $stmt->bind_param("iiissdss", 
-                                $user_id, $provider_id, $service_id, $booking_date, $time_slot,
+                            $stmt->bind_param("iiisdss", 
+                                $user_id, $provider_id, $service_id, $booking_date, 
                                 $total_price, $notes, $booking_reference
                             );
                             
@@ -989,15 +989,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$insert_success) {
                     try {
                         $insert_booking = "INSERT INTO bookings (
-                            customer_id, provider_id, service_id, booking_date, time_slot, booking_status, 
+                            customer_id, provider_id, service_id, booking_date, booking_status, 
                             amount, payment_status, comments, reference_id
-                        ) VALUES (?, ?, ?, ?, ?, 'pending', ?, 'pending', ?, ?)";
+                        ) VALUES (?, ?, ?, ?, 'pending', ?, 'pending', ?, ?)";
                         
                         $stmt = $conn->prepare($insert_booking);
                         
                         if ($stmt) {
-                            $stmt->bind_param("iiissdss", 
-                                $user_id, $provider_id, $service_id, $booking_date, $time_slot,
+                            $stmt->bind_param("iiisdss", 
+                                $user_id, $provider_id, $service_id, $booking_date, 
                                 $total_price, $notes, $booking_reference
                             );
                             
@@ -3840,11 +3840,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                 <!-- Add this hidden input at the beginning of your checkout form -->
                 <form id="checkoutForm" method="post">
-                    <input type="hidden" name="service_id" id="service_id_main">
-                    <input type="hidden" name="service_id_payment" id="service_id_payment">
-                    <input type="hidden" name="booking_date_payment" id="booking_date_payment">
-                    <input type="hidden" name="time_slot_payment" id="time_slot_payment">
-                    <input type="hidden" name="convenience_fee" id="convenience_fee_payment">
+                    <input type="hidden" name="service_id" id="service_id_main" value="<?php echo isset($_GET['service_id']) ? htmlspecialchars($_GET['service_id']) : ''; ?>">
                     
                     <div class="checkout-section" id="serviceDetails">
                         <h3>Service Summary</h3>
@@ -4122,11 +4118,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         sessionStorage.setItem('bookingDate', bookingDate);
         sessionStorage.setItem('timeSlot', timeSlot);
         
-        // Set the hidden fields for the payment step
-        document.getElementById('service_id_payment').value = serviceId;
-        document.getElementById('booking_date_payment').value = bookingDate;
-        document.getElementById('time_slot_payment').value = timeSlot;
-        
         // If validation passes, proceed to payment step
         console.log('Validation passed, showing step 3');
         showStep(3);
@@ -4201,12 +4192,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         console.log('Booking Date:', bookingDate);
         console.log('Time Slot:', timeSlot);
         
-        // Create FormData object
-        const formData = new FormData(document.getElementById('checkoutForm'));
-        formData.append('action', 'place_booking');
-        
-        // If hidden fields are empty, try to get values from session storage
+        // Validate required fields before submission
         if (!serviceId || !bookingDate || !timeSlot) {
+            // Try to get values from session storage as a fallback
             const sessionServiceId = sessionStorage.getItem('serviceId');
             const sessionBookingDate = sessionStorage.getItem('bookingDate');
             const sessionTimeSlot = sessionStorage.getItem('timeSlot');
@@ -4222,17 +4210,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             
             // Use session storage values
+            const formData = new FormData(document.getElementById('checkoutForm'));
+            formData.append('action', 'place_booking');
             formData.append('service_id', sessionServiceId);
             formData.append('booking_date', sessionBookingDate);
             formData.append('time_slot', sessionTimeSlot);
+            
+            processBookingSubmission(formData);
         } else {
             // Use hidden field values
-            formData.append('service_id', serviceId);
-            formData.append('booking_date', bookingDate);
-            formData.append('time_slot', timeSlot);
+            const formData = new FormData(document.getElementById('checkoutForm'));
+            formData.append('action', 'place_booking');
+            
+            processBookingSubmission(formData);
         }
-        
-        processBookingSubmission(formData);
     }
 
     function processBookingSubmission(formData) {
