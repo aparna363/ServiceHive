@@ -518,7 +518,7 @@ $bookings = getBookings($conn);
         }
 
         .logout-btn {
-            margin-top: 225px;
+            margin-top: 270px;
             background-color: rgb(133, 36, 3);
         }
 
@@ -730,10 +730,10 @@ $bookings = getBookings($conn);
         }
         
         .verification-documents {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
         }
         
         .document-preview {
@@ -861,10 +861,10 @@ $bookings = getBookings($conn);
         
         .verification-modal-content {
             background-color: white;
-            margin: 30px auto;
-            padding: 20px;
+            margin: 50px auto;
+            padding: 30px;
             width: 80%;
-            max-width: 800px;
+            max-width: 900px;
             border-radius: 8px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
             position: relative;
@@ -886,57 +886,54 @@ $bookings = getBookings($conn);
         .verification-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 20px;
+            margin-bottom: 30px;
         }
         
         .verification-detail-item {
-            margin-bottom: 8px;
+            margin-bottom: 15px;
         }
         
         .verification-detail-label {
             font-weight: 600;
             color: #495057;
-            margin-bottom: 3px;
+            margin-bottom: 5px;
             display: block;
-            font-size: 13px;
         }
         
         .verification-detail-value {
             color: #212529;
-            font-size: 14px;
         }
         
         .verification-documents {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 20px;
+            margin-bottom: 30px;
         }
         
         .verification-document {
             border: 1px solid #e0e0e0;
-            border-radius: 6px;
+            border-radius: 8px;
             overflow: hidden;
         }
         
         .verification-document-label {
             background-color: #f8f9fa;
-            padding: 6px 8px;
+            padding: 10px;
             font-weight: 600;
-            font-size: 14px;
             color: #495057;
             border-bottom: 1px solid #e0e0e0;
         }
         
         .verification-document-image {
-            padding: 5px;
+            padding: 10px;
             text-align: center;
         }
         
         .verification-document-image img {
             max-width: 100%;
-            max-height: 200px;
+            max-height: 300px;
             object-fit: contain;
         }
         
@@ -1097,28 +1094,6 @@ $bookings = getBookings($conn);
         /* Dashboard stat icon colors */
         .stat-icon.commission {
             background: #2196F3;
-        }
-
-        .verification-image {
-            max-width: 100%;
-            max-height: 200px;
-            object-fit: contain;
-        }
-        
-        .image-container {
-            margin-bottom: 10px;
-        }
-        
-        .image-container h4 {
-            font-size: 14px;
-            margin-bottom: 5px;
-            color: #495057;
-        }
-
-        .verification-modal h3 {
-            margin: 15px 0 10px;
-            color: #333;
-            font-size: 16px;
         }
     </style>
 </head>
@@ -1318,7 +1293,7 @@ $bookings = getBookings($conn);
                     <thead>
                         <tr>
                             <th>Provider</th>
-                            <!-- <th>Business Name</th> -->
+                            <th>Business Name</th>
                             <th>Completed Bookings</th>
                             <th>Total Earnings</th>
                             <th>Admin Commission</th>
@@ -1329,7 +1304,7 @@ $bookings = getBookings($conn);
                             <?php while ($provider = $topProviders->fetch_assoc()): ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($provider['username']); ?></td>
-                                    <!-- <td><?php echo htmlspecialchars($provider['business_name'] ?? 'N/A'); ?></td> -->
+                                    <td><?php echo htmlspecialchars($provider['business_name'] ?? 'N/A'); ?></td>
                                     <td><?php echo $provider['booking_count']; ?></td>
                                     <td>₹<?php echo number_format($provider['total_earnings'], 2); ?></td>
                                     <td>₹<?php echo number_format($provider['admin_commission'], 2); ?></td>
@@ -1422,7 +1397,7 @@ $bookings = getBookings($conn);
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <!-- <button type="button" class="btn btn-approve" onclick="updateProviderStatus(<?php echo $provider['id']; ?>, 'approved')">Approve</button> -->
+                                        <button type="button" class="btn btn-approve" onclick="updateProviderStatus(<?php echo $provider['id']; ?>, 'approved')">Approve</button>
                                         <button type="button" class="btn btn-reject" onclick="updateProviderStatus(<?php echo $provider['id']; ?>, 'rejected')">Reject</button>
                                     </td>
                                 </tr>
@@ -1518,10 +1493,10 @@ $bookings = getBookings($conn);
         <i class="fas <?php echo $user['is_active'] ? 'fa-user-slash' : 'fa-user-check'; ?>"></i>
         <?php echo $user['is_active'] ? 'Deactivate' : 'Activate'; ?>
     </button>
-    <!-- <button type="submit" name="delete_user" class="btn btn-delete" 
+    <button type="submit" name="delete_user" class="btn btn-delete" 
             onclick="return confirm('Are you sure you want to delete this user?')">
         <i class="fas fa-trash"></i> Delete
-    </button> -->
+    </button>
 </form>
                                     </td>
                                 </tr>
@@ -1621,49 +1596,30 @@ $bookings = getBookings($conn);
                         // Create content based on whether documents exist
                         if (details.has_documents) {
                             let content = `
-                                <div class="verification-details">
-                                    <div class="verification-detail-item">
-                                        <span class="verification-detail-label">Business Name</span>
-                                        <span class="verification-detail-value">${details.business_name || 'N/A'}</span>
-                                    </div>
-                                    <div class="verification-detail-item">
-                                        <span class="verification-detail-label">ID Type</span>
-                                        <span class="verification-detail-value">${details.id_type || 'N/A'}</span>
-                                    </div>
-                                    <div class="verification-detail-item">
-                                        <span class="verification-detail-label">ID Number</span>
-                                        <span class="verification-detail-value">${details.id_number || 'N/A'}</span>
-                                    </div>
-                                    <div class="verification-detail-item">
-                                        <span class="verification-detail-label">Uploaded</span>
-                                        <span class="verification-detail-value">${details.uploaded_at ? new Date(details.uploaded_at).toLocaleString() : 'N/A'}</span>
-                                    </div>
+                                <div class="verification-info">
+                                    <p><strong>Business Name:</strong> ${details.business_name || 'N/A'}</p>
+                                    <p><strong>ID Type:</strong> ${details.id_type || 'N/A'}</p>
+                                    <p><strong>ID Number:</strong> ${details.id_number || 'N/A'}</p>
+                                    <p><strong>Uploaded:</strong> ${details.uploaded_at ? new Date(details.uploaded_at).toLocaleString() : 'N/A'}</p>
                                 </div>
-                                <h3>Verification Documents</h3>
-                                <div class="verification-documents">
-                                    <div class="verification-document">
-                                        <div class="verification-document-label">ID Front</div>
-                                        <div class="verification-document-image">
-                                            ${details.id_front_path ? 
-                                                `<img src="${details.id_front_path}" alt="ID Front" class="verification-image">` : 
-                                                '<p class="text-center">No image uploaded</p>'}
-                                        </div>
+                                <div class="verification-images">
+                                    <div class="image-container">
+                                        <h4>ID Front</h4>
+                                        ${details.id_front_path ? 
+                                            `<img src="${details.id_front_path}" alt="ID Front" class="verification-image">` : 
+                                            '<p class="text-center">No image uploaded</p>'}
                                     </div>
-                                    <div class="verification-document">
-                                        <div class="verification-document-label">ID Back</div>
-                                        <div class="verification-document-image">
-                                            ${details.id_back_path ? 
-                                                `<img src="${details.id_back_path}" alt="ID Back" class="verification-image">` : 
-                                                '<p class="text-center">No image uploaded</p>'}
-                                        </div>
+                                    <div class="image-container">
+                                        <h4>ID Back</h4>
+                                        ${details.id_back_path ? 
+                                            `<img src="${details.id_back_path}" alt="ID Back" class="verification-image">` : 
+                                            '<p class="text-center">No image uploaded</p>'}
                                     </div>
-                                    <div class="verification-document">
-                                        <div class="verification-document-label">Address Proof</div>
-                                        <div class="verification-document-image">
-                                            ${details.address_proof_path ? 
-                                                `<img src="${details.address_proof_path}" alt="Address Proof" class="verification-image">` : 
-                                                '<p class="text-center">No image uploaded</p>'}
-                                        </div>
+                                    <div class="image-container">
+                                        <h4>Address Proof</h4>
+                                        ${details.address_proof_path ? 
+                                            `<img src="${details.address_proof_path}" alt="Address Proof" class="verification-image">` : 
+                                            '<p class="text-center">No image uploaded</p>'}
                                     </div>
                                 </div>
                             `;
@@ -1775,19 +1731,19 @@ $bookings = getBookings($conn);
                     <div class="verification-document">
                         <div class="verification-document-label">ID Proof (Front)</div>
                         <div class="verification-document-image">
-                            <img src="${details.id_proof_front}" alt="ID Proof Front" class="verification-image">
+                            <img src="${details.id_proof_front}" alt="ID Proof Front">
                         </div>
                     </div>
                     <div class="verification-document">
                         <div class="verification-document-label">ID Proof (Back)</div>
                         <div class="verification-document-image">
-                            <img src="${details.id_proof_back}" alt="ID Proof Back" class="verification-image">
+                            <img src="${details.id_proof_back}" alt="ID Proof Back">
                         </div>
                     </div>
                     <div class="verification-document">
                         <div class="verification-document-label">Address Proof</div>
                         <div class="verification-document-image">
-                            <img src="${details.address_proof}" alt="Address Proof" class="verification-image">
+                            <img src="${details.address_proof}" alt="Address Proof">
                         </div>
                     </div>
                 </div>
@@ -1837,7 +1793,7 @@ $bookings = getBookings($conn);
                 if (data.success) {
                     alert(data.message);
                     closeVerificationModal();
-                    // Reload the page to update the verification list and service providers table
+                    // Reload the page to update the verification list
                     location.reload();
                 } else {
                     alert('Error: ' + data.message);
